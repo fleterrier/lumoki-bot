@@ -264,15 +264,20 @@ app.post('/webhook', async (req, res) => {
 
   try {
     // Load or create conversation
-    let { data: conv } = await db.from('conversations')
+    let { data: conv, error: convErr } = await db.from('conversations')
       .select('*').eq('phone', phone).eq('status', 'in_progress').single();
+
+    console.log(`🔍 Conv loaded: ${conv ? `id=${conv.id} step=${conv.step}` : 'none'} | err: ${convErr?.code || 'ok'}`);
 
     if (!conv) {
       const lang = await detectLanguage(body);
-      const { data: nc } = await db.from('conversations')
+      console.log(`🌐 New conv | lang: ${lang}`);
+      const { data: nc, error: insertErr } = await db.from('conversations')
         .insert({ phone, language: lang, step: 0, state: {} }).select().single();
+      console.log(`➕ Insert conv: ${nc ? `id=${nc.id}` : 'FAILED'} | err: ${insertErr?.message || 'ok'}`);
       conv = nc;
       await send(phone, t('welcome', lang));
+      await db.from('conversations').update({ step: 1 }).eq('id', nc.id);
       return;
     }
 
@@ -280,6 +285,7 @@ app.post('/webhook', async (req, res) => {
     const step  = conv.step;
     const state = { ...conv.state };
     let next    = step + 1;
+    console.log(`▶️  Step ${step} | lang: ${lang} | pending: ${state.pending_confirm || 'none'}`);
 
     // Handle photo upload helper
     // Helper: upload photo + analyse Claude
