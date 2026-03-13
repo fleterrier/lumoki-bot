@@ -185,6 +185,15 @@ async function generateDiagnostic(state, lang) {
   const photos = (state.photos || []).map(p => `[${p.type}] ${p.analysis?.observations || ''}`).join('\n');
   const langName = { fr:'French', en:'English', wo:'Wolof', bm:'Bambara', sw:'Swahili', ha:'Hausa', yo:'Yoruba', fon:'Fon', dyu:'Dioula' }[lang] || 'French';
 
+  // Map numeric answers to readable text
+  const siteTypeMap = {'1':'Homes/families','2':'School','3':'Health clinic','4':'Water pump','5':'Other'};
+  const symptomMap  = {'1':'Nothing works at all','2':'Works during day but not at night','3':'Cuts off frequently','4':'Weak light, appliances work poorly','5':'Strange smell or heat','6':'Main box shows error'};
+  const eventMap    = {'1':'Storm or lightning strike','2':'Flooding','3':'Someone modified the installation','4':'Nothing particular happened recently'};
+
+  const siteTypeText     = siteTypeMap[state.site_type]     || state.site_type     || 'Unknown';
+  const symptomText      = symptomMap[state.symptom]        || state.symptom        || 'Unknown';
+  const recentEventText  = eventMap[state.recent_event]     || state.recent_event   || 'Unknown';
+
   const res = await ai.messages.create({
     model: 'claude-opus-4-5',
     max_tokens: 2000,
@@ -192,10 +201,11 @@ async function generateDiagnostic(state, lang) {
 
 SITE REPORT:
 - Location: ${state.location}
-- People: ${state.people_count}
+- Site type: ${siteTypeText}
+- People served: ${state.people_count}
 - Offline since: ${state.offline_duration}
-- Symptom: ${state.symptom}
-- Recent event: ${state.recent_event}
+- Main symptom: ${symptomText}
+- Recent event: ${recentEventText}
 - Reporter: ${state.contact}
 
 PHOTO ANALYSES:
