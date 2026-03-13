@@ -56,6 +56,39 @@ const T = {
     dyu: "Installation jɛn ye ?\n\n1️⃣ Sow / familles\n2️⃣ Kalanso\n3️⃣ Furaso\n4️⃣ Ji pompe\n5️⃣ Wɛrɛ"
   },
 
+  confirm: {
+    fr: (val) => `Vous avez répondu : *${val}*\nC'est bien ça ? (oui / non)`,
+    en: (val) => `You answered: *${val}*\nIs that correct? (yes / no)`,
+    sw: (val) => `Ulijibu: *${val}*\nJe hiyo ni sahihi? (ndiyo / hapana)`,
+    wo: (val) => `Defal na : *${val}*\nMoo rekk? (waaw / déedéet)`,
+    bm: (val) => `I y'a jaabi : *${val}*\nA sɔrɔ wa? (ɔwɔ / ayi)`,
+    fon: (val) => `A ná : *${val}*\nÉ nyí mɔ̌? (ɛɛn / eyi)`,
+    ha: (val) => `Ka amsa: *${val}*\nHaka ne? (eh / a'a)`,
+    yo: (val) => `O dáhùn: *${val}*\nṢé ìyẹn tọ́? (bẹ́ẹ̀ni / rárá)`,
+    dyu: (val) => `I y'a jaabi : *${val}*\nA sɔrɔ wa? (ɔwɔ / ayi)`
+  },
+  confirm_no: {
+    fr: "D'accord, recommençons. ",
+    en: "OK, let's try again. ",
+    sw: "Sawa, hebu tuanze tena. ",
+    wo: "Waaw, jegelee. ",
+    bm: "Aw, an dɔ lajɛ. ",
+    fon: "Enyi, bɔ dó. ",
+    ha: "To, mu sake. ",
+    yo: "Ó dára, jẹ́ ká tún. ",
+    dyu: "Aw, an dɔ lajɛ. "
+  },
+  gps: {
+    fr: "📍 Partagez votre *position GPS* maintenant (bouton 📎 → Position)\nOu tapez *SKIP* si vous ne pouvez pas.",
+    en: "📍 Share your *GPS location* now (button 📎 → Location)\nOr type *SKIP* if you can't.",
+    sw: "📍 Shiriki *eneo lako la GPS* sasa (kitufe 📎 → Mahali)\nAu andika *SKIP* kama huwezi.",
+    wo: "📍 Yónneel *position GPS* bi kanam (bouton 📎 → Position)\nWala def *SKIP* bu mën ul.",
+    bm: "📍 I *GPS position* ci dɔ (bouton 📎 → Position)\nWala sɛbɛn *SKIP* ni i ma se.",
+    fon: "📍 Sɛ́nd *position GPS* towe ɖíe (bouton 📎 → Position)\nEnyi a sixu ǎ wlan *SKIP*.",
+    ha: "📍 Raba *wurin GPS* yanzu (maɓallin 📎 → Wuri)\nKo rubuta *SKIP* in ba za ku iya ba.",
+    yo: "📍 Pín *ìpò GPS* rẹ bí (bọ́tìnnì 📎 → Ìpò)\nTàbí tẹ *SKIP* bí o kò bá lè.",
+    dyu: "📍 I *GPS position* ci dɔ (bouton 📎 → Position)\nWala sɛbɛn *SKIP* ni i ma se."
+  },
   duration: {
     fr: "Depuis *combien de temps* l'installation ne fonctionne plus ?\n_(Ex: 2 jours, 1 semaine, 1 mois)_",
     en: "For *how long* has the installation not been working?\n_(E.g: 2 days, 1 week, 1 month)_",
@@ -271,78 +304,170 @@ app.post('/webhook', async (req, res) => {
     const ph = photoHelp[lang] || photoHelp.fr;
     const isSkip = body.toUpperCase() === 'SKIP';
 
-    switch(step) {
-      case 1:  state.location           = body; await send(phone, t('people', lang));    break;
-      case 2:  state.people_count       = body; await send(phone, t('site_type', lang)); break;
-      case 3:  state.site_type          = body; await send(phone, t('duration', lang));  break;
-      case 4:  state.offline_duration   = body; await send(phone, t('symptom', lang));   break;
-      case 5:  state.symptom            = body; await send(phone, t('event', lang));      break;
-      case 6:  state.recent_event       = body; await send(phone, t('inv_far', lang));    break;
+    // Helper: confirmation for free-text inputs
+    const isYes = /^(oui|yes|ok|waaw|ɔwɔ|ɛɛn|eh|bẹ̀ẹni|ndiyo|si|da|1)$/i.test(body.trim());
+    const isNo  = /^(non|no|déedéet|ayi|eyi|a'a|rárá|hapana|2)$/i.test(body.trim());
 
-      case 7:
+    const confirmOrSave = async (field, value, nextQuestion, nextStep) => {
+      if (state.pending_confirm === field) {
+        // User is responding to confirmation
+        if (isYes) {
+          state[field] = state[`pending_${field}`];
+          delete state.pending_confirm;
+          delete state[`pending_${field}`];
+          await send(phone, nextQuestion);
+        } else {
+          // No — re-ask
+          delete state.pending_confirm;
+          delete state[`pending_${field}`];
+          const confirmNo = T.confirm_no[lang] || T.confirm_no.fr;
+          await send(phone, confirmNo + nextQuestion.split('\n')[0]);
+          next = step; // stay on same step
+        }
+      } else {
+        // First time — ask confirmation
+        state.pending_confirm = field;
+        state[`pending_${field}`] = value;
+        const confirmFn = T.confirm[lang] || T.confirm.fr;
+        await send(phone, confirmFn(value));
+        next = step; // stay on same step
+      }
+    };
+
+    switch(step) {
+      case 1:
+        await confirmOrSave('location', body, t('people', lang), 2);
+        break;
+      case 2:
+        await confirmOrSave('people_count', body, t('site_type', lang), 3);
+        break;
+      case 3:  state.site_type          = body; await send(phone, t('duration', lang));  break;
+      case 4:
+        await confirmOrSave('offline_duration', body, t('symptom', lang), 5);
+        break;
+      case 5:  state.symptom            = body; await send(phone, t('event', lang));      break;
+      case 6:  state.recent_event       = body; await send(phone, t('gps', lang));    break;
+
+      case 7: {
+        // GPS location
+        const lat = req.body.Latitude;
+        const lng = req.body.Longitude;
+        if (lat && lng) {
+          state.lat = parseFloat(lat);
+          state.lng = parseFloat(lng);
+          await send(phone, t('inv_far', lang));
+        } else if (isSkip || body) {
+          // No GPS shared — continue anyway
+          await send(phone, t('inv_far', lang));
+        } else {
+          await send(phone, t('gps', lang));
+          return;
+        }
+        break;
+      }
+
+      case 8:
         if (!mediaUrl && !isSkip) { await send(phone, ph('de la boîte principale (de loin)')); return; }
         await uploadIfMedia('inverter_far', 'inverter main box far shot');
         await send(phone, t('inv_brand', lang)); break;
 
-      case 8:
+      case 9:
         if (!mediaUrl && !isSkip) { await send(phone, ph("de l'étiquette (marque et modèle)")); return; }
         await uploadIfMedia('inverter_brand', 'inverter label brand model numbers');
         await send(phone, t('inv_screen', lang)); break;
 
-      case 9:
+      case 10:
         if (!mediaUrl && !isSkip) { await send(phone, ph("de l'écran ou des voyants")); return; }
         await uploadIfMedia('inverter_screen', 'inverter screen error codes display');
         await send(phone, t('bat_far', lang)); break;
 
-      case 10:
+      case 11:
         if (!mediaUrl && !isSkip) { await send(phone, ph('de toutes les batteries (de loin)')); return; }
         await uploadIfMedia('batteries_far', 'battery bank far shot count units');
         await send(phone, t('bat_brand', lang)); break;
 
-      case 11:
+      case 12:
         if (!mediaUrl && !isSkip) { await send(phone, ph("de l'étiquette sur une batterie")); return; }
         await uploadIfMedia('battery_brand', 'battery label brand capacity voltage');
         await send(phone, t('bat_terminals', lang)); break;
 
-      case 12:
+      case 13:
         if (!mediaUrl && !isSkip) { await send(phone, ph('des bornes et câbles des batteries')); return; }
         await uploadIfMedia('battery_terminals', 'battery terminals corrosion cables');
         await send(phone, t('panels_far', lang)); break;
 
-      case 13:
+      case 14:
         if (!mediaUrl && !isSkip) { await send(phone, ph('des panneaux sur le toit (de loin)')); return; }
         await uploadIfMedia('panels_far', 'solar panels far shot roof count');
         await send(phone, t('panels_close', lang)); break;
 
-      case 14:
+      case 15:
         if (!mediaUrl && !isSkip) { await send(phone, ph('des panneaux (de proche si abîmés)')); return; }
         await uploadIfMedia('panel_close', 'solar panel close-up cracks dirt');
         await send(phone, t('tableau', lang)); break;
 
-      case 15:
+      case 16:
         if (!mediaUrl && !isSkip) { await send(phone, ph('du tableau électrique ou des fusibles')); return; }
         await uploadIfMedia('tableau', 'electrical panel fuses breakers');
         await send(phone, t('contact', lang)); break;
 
-      case 16:
-        state.contact = body;
+      case 17:
+        if (state.pending_confirm === 'contact') {
+          if (isYes) {
+            state.contact = state.pending_contact;
+            delete state.pending_confirm;
+            delete state.pending_contact;
+          } else {
+            delete state.pending_confirm;
+            delete state.pending_contact;
+            await send(phone, (T.confirm_no[lang] || T.confirm_no.fr) + t('contact', lang));
+            next = step;
+            break;
+          }
+        } else if (!state.contact) {
+          state.pending_confirm = 'contact';
+          state.pending_contact = body;
+          const confirmFn = T.confirm[lang] || T.confirm.fr;
+          await send(phone, confirmFn(body));
+          next = step;
+          break;
+        }
         await send(phone, t('analyzing', lang));
 
         // Save state first
-        await db.from('conversations').update({ state, step: 17, status: "complete" }).eq('id', conv.id);
+        await db.from('conversations').update({ state, step: 18, status: "complete" }).eq('id', conv.id);
 
         // Generate AI diagnostic
         const diag = await generateDiagnostic(state, lang);
 
         // Create site in Supabase
         const { count } = await db.from('sites').select('*', { count: 'exact', head: true });
-        const siteId = `AFR-${String((count || 0) + 1).padStart(3, '0')}`;
+        const year = new Date().getFullYear();
+
+        // Country code from location text
+        const countryCodeMap = {
+          'senegal': 'SEN', 'sénégal': 'SEN',
+          'mali': 'MLI',
+          'burkina': 'BFA',
+          'guinee': 'GIN', 'guinée': 'GIN',
+          'cote': 'CIV', 'ivory': 'CIV',
+          'nigeria': 'NGA',
+          'ghana': 'GHA',
+          'tanzanie': 'TZA', 'tanzania': 'TZA',
+          'ouganda': 'UGA', 'uganda': 'UGA',
+          'zambie': 'ZMB', 'zambia': 'ZMB',
+          'benin': 'BEN', 'bénin': 'BEN'
+        };
+        const locationLower = (state.location || '').toLowerCase();
+        const countryCode = Object.entries(countryCodeMap).find(([k]) => locationLower.includes(k))?.[1] || 'AFR';
+        const siteId = `${countryCode}-${year}-${String((count || 0) + 1).padStart(3, '0')}`;
         const country = state.location.split(/,|\s+en\s+|\s+in\s+/i).pop()?.trim() || state.location;
 
         await db.from('sites').insert({
           id: siteId, name: `${state.location} — Solar Site`,
-          lat: 0, lng: 0, status: 'offline', category: 'community',
+          lat: state.lat || 0, lng: state.lng || 0, status: 'offline', category: 'community',
           kw: diag.panel_kw || 0, country, region: 'west',
+          category: ({'1':'community','2':'school','3':'health','4':'water','5':'business'})[state.site_type] || 'community',
           people: parseInt(state.people_count) || 0,
           photo_url: state.photos?.[0]?.url || null,
           fault: diag.fault_primary,
@@ -355,6 +480,74 @@ app.post('/webhook', async (req, res) => {
 
         await db.from('conversations').update({ site_id: siteId }).eq('id', conv.id);
         await notifyTeam(siteId, diag, state);
+
+        // Confirmation message to reporter
+        const doneMsg = {
+          fr: `✅ *Signalement enregistré !*
+
+Référence : *${siteId}*
+
+Notre équipe technique a reçu votre rapport et les photos. Un technicien vous contactera dans les 48h.
+
+Merci d'aider votre communauté ! 🌞`,
+          en: `✅ *Report registered!*
+
+Reference: *${siteId}*
+
+Our technical team has received your report and photos. A technician will contact you within 48 hours.
+
+Thank you for helping your community! 🌞`,
+          sw: `✅ *Ripoti imesajiliwa!*
+
+Nambari ya kumbukumbu: *${siteId}*
+
+Timu yetu imepokea ripoti na picha zako. Fundi atawasiliana nawe ndani ya masaa 48.
+
+Asante kwa kusaidia jamii yako! 🌞`,
+          wo: `✅ *Siiña bi dëkk na!*
+
+Référence : *${siteId}*
+
+Sunu équipe technique jël na rapport ak litrati yii. Benn technicien dinaa nekk ak yow ci 48h.
+
+Jërëjëf ! 🌞`,
+          bm: `✅ *Sɛbɛnni kɛra!*
+
+Référence : *${siteId}*
+
+Sunu équipe ye i ka rapport ni fɔtɔw sɔrɔ. Technicien dɔ bɛna i weele tile 2 kɔnɔ.
+
+I ni ce ! 🌞`,
+          fon: `✅ *Gbɛ̌ nǔ e kúnkan ɔ sɛ́ do!*
+
+Référence : *${siteId}*
+
+Mɛtɔn lɛ ɖó ripɔti kpo foto lɛ kpo. Technicien ɖé na ylɔ we ɖò wɛkɛ ɖokpo mɛ.
+
+Akpé ! 🌞`,
+          ha: `✅ *An yi rajista rahoto!*
+
+Lamba ta: *${siteId}*
+
+ƙungiyarmu ta karɓi rahoton ku da hotuna. Masanin fasaha zai sadar da ku cikin awanni 48.
+
+Na gode ! 🌞`,
+          yo: `✅ *Ìròyìn ti forúkọsilẹ̀!*
+
+Àtọ́kasí: *${siteId}*
+
+Ẹgbẹ́ wa ti gbà ìròyìn àti àwọn fọ́tò rẹ. Onímọ̀ ẹ̀rọ yóò kan sí ọ láàárọ̀ 48.
+
+Ẹ ṣéun ! 🌞`,
+          dyu: `✅ *Sɛbɛnni kɛra!*
+
+Référence : *${siteId}*
+
+Sunu équipe ye i ka rapport ni fɔtɔw sɔrɔ. Technicien dɔ bɛna i weele tile 2 kɔnɔ.
+
+I ni ce ! 🌞`
+        };
+        await send(phone, doneMsg[lang] || doneMsg.fr);
         return;
 
       default:
