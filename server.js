@@ -259,6 +259,7 @@ app.post('/webhook', async (req, res) => {
   const phone    = req.body.From?.replace('whatsapp:', '') || '';
   const body     = (req.body.Body || '').trim();
   const mediaUrl = req.body.MediaUrl0 || null;
+  console.log(`📩 Incoming | phone: ${phone} | body: "${body}" | media: ${mediaUrl ? 'yes' : 'no'}`);
   if (!phone) return;
 
   try {
