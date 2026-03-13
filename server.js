@@ -564,7 +564,12 @@ I ni ce ! 🌞`
     await db.from('conversations').update({ state, step: next, updated_at: new Date() }).eq('id', conv.id);
 
   } catch(e) {
-    console.error('Webhook error:', e);
+    console.error('❌ Webhook error:', e.message);
+    console.error('Stack:', e.stack);
+    console.error('Conv:', conv ? `id=${conv.id} step=${conv.step}` : 'no conv');
+    try {
+      await send(phone, '⚠️ Erreur technique. Tapez *restart* pour recommencer.');
+    } catch(e2) { console.error('Send error:', e2.message); }
   }
 });
 
