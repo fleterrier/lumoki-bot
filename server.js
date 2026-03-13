@@ -212,7 +212,108 @@ async function generateDiagnostic(state, lang) {
     max_tokens: 2000,
     messages: [{ role: 'user', content: [
       ...imageBlocks,
-      { type: 'text', text: `You are a solar energy expert for Sub-Saharan Africa off-grid installations.
+      { type: 'text', text: `You are an expert solar energy diagnostic AI for off-grid installations in Sub-Saharan Africa.
+
+CRITICAL: If any photo shows an inverter/charge controller screen, READ THE EXACT ERROR CODE displayed. Error codes are the most important diagnostic signal.
+
+INVERTER ERROR CODE REFERENCE:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VICTRON (MultiPlus, EasySolar, Phoenix):
+- #1 BMS cable - BMS cable lost, check cable connection
+- #2 Low SOC - Battery discharged below minimum
+- #17/#18/#19 Overvoltage AC - AC output overvoltage
+- #20 Low battery - Low battery voltage shutdown
+- #22 Internal temp - Overheating, check ventilation
+- #26 Inverter overload - Load exceeds inverter capacity
+- #38/#39 Input shutdown - Battery voltage too low
+
+GROWATT (SPF, MIN, MID, MAC series):
+- E01 Fan failure - Cooling fan broken or blocked
+- E02 Overtemperature - Check ventilation clearance
+- E03 Battery voltage high - Battery overvoltage
+- E04 Battery voltage low - Deep discharge
+- E05 PV overvoltage - Too many panels in series
+- E06 AC output short - Short circuit in load wiring
+- E08 Bus overvoltage - Internal DC bus issue
+- F01/F02/F03 - Grid fault, frequency/voltage out of range
+- OFF Grid mode - Normal if intentional
+
+DEYE (SUN-xK series):
+- F01 Grid overvoltage - Grid voltage too high
+- F02 Grid undervoltage - Grid voltage too low
+- F03 Grid overfrequency / F04 Underfrequency
+- F05 Grid voltage imbalance
+- F11 Bus voltage high - DC bus overvoltage
+- F23 Battery overvoltage - Check charge settings
+- F24 Battery undervoltage - Battery deeply discharged
+- F26 Battery overtemperature - Check battery area ventilation
+- F55 Grid relay fault - Internal relay failure
+- W001-W099 Warnings (non-critical)
+
+SUNGROW (SG, SH series):
+- 010 Grid overvoltage / 011 Grid undervoltage
+- 012 Grid overfrequency / 013 Grid underfrequency
+- 016 No grid / 018 Grid loss
+- 030 Overtemperature
+- 051 Insulation resistance low - Check panel wiring for ground fault
+- 052 GFCI fault - Ground fault, check all PV wiring
+- 071 PV overvoltage
+- 080 Battery communication lost
+- 401 Battery discharge overcurrent
+
+VOLTRONIC / AXPERT (very common in West Africa):
+- 01 Fan locked / 02 Overtemperature
+- 03 Battery voltage too high / 04 Battery voltage too low
+- 05 Output short / 06 Output voltage too high
+- 07 Overload timeout / 08 Bus voltage too high
+- 09 Bus soft start fail / 10/11 DC offset
+- 51 Overload by inverter / 52 Overload by battery
+- Warning 20: Load limit reached
+- Warning 21: Battery capacity warning
+
+SMA (Sunny Boy, Sunny Island):
+- Disturbance Vac-Bfr: AC voltage out of range, check grid connection
+- Disturbance f: Grid frequency fault
+- SSD (Shutdown): Normal shutdown
+- Insulation failure: Ground fault in PV array
+- Fan failure: Replace cooling fan
+- Overtemperature: Check ventilation
+
+STUDER (Xtender, VarioTrack):
+- Error 1-5: Battery connection issues
+- Error 6: Overload
+- Error 8: Overtemperature
+- Error 32: Short circuit
+- bLd: Battery low discharge
+
+SCHNEIDER (XW+, Conext):
+- F1 AC over/undervoltage
+- F2 AC overfrequency
+- F11 Overtemperature
+- F51 Battery overvoltage / F52 Undervoltage
+- F63 Ground fault
+
+LUMINOUS (common India/West Africa):
+- E01 Overload / E02 Deep discharge
+- E03 Short circuit / E04 Battery reverse
+- ERR Battery temp high
+
+HUAWEI (SUN2000):
+- 2001: Grid overvoltage / 2002: Grid undervoltage
+- 2011: Grid overfrequency
+- 2021: Insulation resistance low → ground fault
+- 2031: AFCI arc fault → check panel connectors
+- 2061: Overtemperature
+- E012-E014: Communication error with battery
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+COMMON BATTERY FAILURE SIGNATURES (60% of cases in SSA):
+- Works day not night → sulfated or dead cells, capacity < 20%
+- Frequent cutoffs → one or more bad cells, internal resistance high
+- Swollen battery → overcharge, gassing, replace immediately
+- White powder on terminals → sulfation/corrosion, clean + test voltage
+- Voltage OK but no power → dead cell(s), test each battery individually
 
 SITE REPORT:
 - Location: ${state.location}
@@ -223,20 +324,27 @@ SITE REPORT:
 - Recent event: ${recentEventText}
 - Reporter: ${state.contact}
 
-PHOTO ANALYSES:
+PHOTO ANALYSES (pre-extracted):
 ${photos}
+
+INSTRUCTIONS:
+1. FIRST examine all photos carefully for any visible error codes, damage, corrosion
+2. If you see an error code on screen, identify it using the reference above
+3. Count batteries in the far shot
+4. Read brand/model from label photos
+5. Note any corrosion, swelling, burn marks, loose cables
 
 Generate diagnostic JSON (respond ONLY with valid JSON, no markdown):
 {
-  "inverter_brand":"","inverter_model":"","inverter_kw":null,
+  "inverter_brand":"","inverter_model":"","inverter_kw":null,"inverter_error_code":"",
   "battery_brand":"","battery_count":null,"battery_ah":null,"battery_voltage":null,"battery_tech":"",
   "panel_count":null,"panel_kw":null,
   "fault_primary":"","fault_secondary":"","fault_tertiary":"",
   "confidence":0,"urgency":1,
   "parts_needed":[{"name":"","qty":1,"est_cost_eur":0}],
-  "total_cost_est":0,"days_offline":0,"recent_event":"",
-  "ai_report":"narrative in ${langName}",
-  "ai_instructions":"technician steps in ${langName}"
+  "total_cost_est":0,"days_offline":0,
+  "ai_report":"detailed narrative in ${langName} — mention exact error code if visible",
+  "ai_instructions":"step-by-step technician actions in ${langName}, starting with error code resolution if applicable"
 }` }
     ]}]
   });
