@@ -1,0 +1,23 @@
+{
+  "name": "lumoki-bot",
+  "version": "1.0.0",
+  "description": "Lumoki WhatsApp diagnostic bot",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.24.0",
+    "@supabase/supabase-js": "^2.43.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "node-fetch": "^3.3.2",
+    "resend": "^3.2.0",
+    "twilio": "^5.1.0"
+  }
+}
