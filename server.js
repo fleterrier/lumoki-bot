@@ -154,14 +154,17 @@ async function detectLanguage(text) {
 // ── UPLOAD PHOTO ─────────────────────────────────────────────────────────────
 async function uploadPhoto(mediaUrl, convId, type) {
   try {
-    const auth = 'Basic ' + Buffer.from(`${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`).toString('base64');
-    const r    = await fetch(mediaUrl, { headers: { Authorization: auth } });
-    const buf  = await r.buffer();
-    const ext  = r.headers.get('content-type')?.includes('png') ? 'png' : 'jpg';
-    const path = `conv-${convId}/${type}_${Date.now()}.${ext}`;
-    const { error } = await db.storage.from('site-photos').upload(path, buf, { contentType: `image/${ext}`, upsert: true });
+    const auth    = 'Basic ' + Buffer.from(`${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`).toString('base64');
+    const r       = await fetch(mediaUrl, { headers: { Authorization: auth } });
+    const buf     = await r.buffer();
+    const mimeType = r.headers.get('content-type') || 'image/jpeg';
+    const ext     = mimeType.includes('png') ? 'png' : 'jpg';
+    const path    = `conv-${convId}/${type}_${Date.now()}.${ext}`;
+    const { error } = await db.storage.from('site-photos').upload(path, buf, { contentType: mimeType, upsert: true });
     if (error) throw error;
-    return db.storage.from('site-photos').getPublicUrl(path).data.publicUrl;
+    const publicUrl = db.storage.from('site-photos').getPublicUrl(path).data.publicUrl;
+    // Return both URL and base64 for Claude Vision
+    return { url: publicUrl, base64: buf.toString('base64'), mimeType };
   } catch(e) { console.error('Upload error:', e); return null; }
 }
 
@@ -182,6 +185,16 @@ async function analyzePhoto(url, context) {
 
 // ── GENERATE FINAL DIAGNOSTIC ─────────────────────────────────────────────────
 async function generateDiagnostic(state, lang) {
+  // Build image blocks for Claude Vision — send actual photos
+  const imageBlocks = [];
+  for (const p of (state.photos || [])) {
+    if (p.base64 && p.mimeType) {
+      imageBlocks.push({ type: 'text', text: `Photo type: ${p.type} | Pre-analysis: ${p.analysis?.observations || 'none'}` });
+      imageBlocks.push({ type: 'image', source: { type: 'base64', media_type: p.mimeType, data: p.base64 } });
+    } else if (p.analysis?.observations) {
+      imageBlocks.push({ type: 'text', text: `[${p.type}] ${p.analysis.observations}` });
+    }
+  }
   const photos = (state.photos || []).map(p => `[${p.type}] ${p.analysis?.observations || ''}`).join('\n');
   const langName = { fr:'French', en:'English', wo:'Wolof', bm:'Bambara', sw:'Swahili', ha:'Hausa', yo:'Yoruba', fon:'Fon', dyu:'Dioula' }[lang] || 'French';
 
@@ -197,7 +210,9 @@ async function generateDiagnostic(state, lang) {
   const res = await ai.messages.create({
     model: 'claude-opus-4-5',
     max_tokens: 2000,
-    messages: [{ role: 'user', content: `You are a solar energy expert for Sub-Saharan Africa off-grid installations.
+    messages: [{ role: 'user', content: [
+      ...imageBlocks,
+      { type: 'text', text: `You are a solar energy expert for Sub-Saharan Africa off-grid installations.
 
 SITE REPORT:
 - Location: ${state.location}
@@ -222,7 +237,8 @@ Generate diagnostic JSON (respond ONLY with valid JSON, no markdown):
   "total_cost_est":0,"days_offline":0,"recent_event":"",
   "ai_report":"narrative in ${langName}",
   "ai_instructions":"technician steps in ${langName}"
-}` }]
+}` }
+    ]}]
   });
 
   return JSON.parse(res.content[0].text.replace(/```json|```/g,'').trim());
@@ -301,9 +317,17 @@ app.post('/webhook', async (req, res) => {
     // Helper: upload photo + analyse Claude
     const uploadIfMedia = async (type, context) => {
       if (!mediaUrl) return;
-      const url = await uploadPhoto(mediaUrl, conv.id, type);
-      const analysis = url ? await analyzePhoto(url, context) : null;
-      state.photos = [...(state.photos || []), { type, url, analysis }];
+      const result  = await uploadPhoto(mediaUrl, conv.id, type);
+      if (!result) return;
+      const analysis = await analyzePhoto(result.url, context);
+      // Store base64 in memory for final Claude Vision diagnostic
+      state.photos = [...(state.photos || []), {
+        type,
+        url:      result.url,
+        base64:   result.base64,
+        mimeType: result.mimeType,
+        analysis
+      }];
     };
 
     // Helper: messages d'aide photo par langue
