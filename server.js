@@ -199,6 +199,7 @@ async function send(to, body) {
   const from = process.env.TWILIO_WHATSAPP_NUMBER.startsWith('whatsapp:')
     ? process.env.TWILIO_WHATSAPP_NUMBER
     : `whatsapp:${process.env.TWILIO_WHATSAPP_NUMBER}`;
+  console.log(`DEBUG send → from: "${from}" to: "whatsapp:${to}"`);
   await twilioCli.messages.create({
     from,
     to: `whatsapp:${to}`,
