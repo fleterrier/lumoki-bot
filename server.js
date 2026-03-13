@@ -272,12 +272,12 @@ app.post('/webhook', async (req, res) => {
     if (!conv) {
       const lang = await detectLanguage(body);
       console.log(`🌐 New conv | lang: ${lang}`);
+      // Create directly at step 1 — welcome is the step 0 action
       const { data: nc, error: insertErr } = await db.from('conversations')
-        .insert({ phone, language: lang, step: 0, state: {} }).select().single();
-      console.log(`➕ Insert conv: ${nc ? `id=${nc.id}` : 'FAILED'} | err: ${insertErr?.message || 'ok'}`);
-      conv = nc;
+        .insert({ phone, language: lang, step: 1, state: {} }).select().single();
+      console.log(`➕ Insert conv: ${nc ? `id=${nc.id} step=${nc.step}` : 'FAILED'} | err: ${insertErr?.message || 'ok'}`);
+      if (!nc) return;
       await send(phone, t('welcome', lang));
-      await db.from('conversations').update({ step: 1 }).eq('id', nc.id);
       return;
     }
 
@@ -561,7 +561,7 @@ I ni ce ! 🌞`
         if (/bonjour|hello|nouveau|new|start/i.test(body)) {
           await db.from('conversations').update({ status: 'abandoned' }).eq('id', conv.id);
           const newLang = await detectLanguage(body);
-          await db.from("conversations").insert({ phone, language: newLang, step: 0, state: {} });
+          await db.from("conversations").insert({ phone, language: newLang, step: 1, state: {} });
           await send(phone, t('welcome', newLang));
         }
         return;
