@@ -196,9 +196,12 @@ async function notifyTeam(siteId, diagnostic, state) {
 
 // ── SEND WHATSAPP ─────────────────────────────────────────────────────────────
 async function send(to, body) {
+  const from = process.env.TWILIO_WHATSAPP_NUMBER.startsWith('whatsapp:')
+    ? process.env.TWILIO_WHATSAPP_NUMBER
+    : `whatsapp:${process.env.TWILIO_WHATSAPP_NUMBER}`;
   await twilioCli.messages.create({
-    from: `whatsapp:${process.env.TWILIO_WHATSAPP_NUMBER}`,
-    to:   `whatsapp:${to}`,
+    from,
+    to: `whatsapp:${to}`,
     body
   });
 }
