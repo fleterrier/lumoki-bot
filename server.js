@@ -44,6 +44,18 @@ const T = {
     fon: "Akpé! *Xwédo lɛ kpo gbɛtɔ lɛ kpo* wɛ nɛ nú solar ɔ bló?",
     dyu: "I ni ce ! *Somɔgɔ wɛrɛ joli* bɛ installation in kɛlɛ ?"
   },
+  site_type: {
+    fr: "Quel type dinstallation ?\n\n1️⃣ Maisons / familles\n2️⃣ École\n3️⃣ Dispensaire / santé\n4️⃣ Pompe à eau\n5️⃣ Autre",
+    en: "What type of installation?\n\n1️⃣ Homes / families\n2️⃣ School\n3️⃣ Health clinic\n4️⃣ Water pump\n5️⃣ Other",
+    sw: "Aina gani ya mfumo?\n\n1️⃣ Nyumba / familia\n2️⃣ Shule\n3️⃣ Kliniki\n4️⃣ Pampu ya maji\n5️⃣ Nyingine",
+    wo: "Ana install bi ?\n\n1️⃣ Kër yi / familles\n2️⃣ Daara\n3️⃣ Dispensaire\n4️⃣ Pompe\n5️⃣ Yeneen",
+    bm: "Installation jɛn ye ?\n\n1️⃣ Sow / familles\n2️⃣ Kalanso\n3️⃣ Furaso\n4️⃣ Ji pompe\n5️⃣ Wɛrɛ",
+    ha: "Wane irin tsari ne?\n\n1️⃣ Gidaje / iyalai\n2️⃣ Makaranta\n3️⃣ Asibitin lafiya\n4️⃣ Famfo ruwa\n5️⃣ Wani abu",
+    yo: "Iru eto wo ni?\n\n1️⃣ Ile / ebi\n2️⃣ Ile-iwe\n3️⃣ Ile-iwosan\n4️⃣ Fampu omi\n5️⃣ Miiiran",
+    fon: "Klasi solar tɛ wɛ?\n\n1️⃣ Xwé / xwédo\n2️⃣ Suklu\n3️⃣ Azɔ gbigbɔ\n4️⃣ Tomatin dji\n5️⃣ Vɔ ɖevo",
+    dyu: "Installation jɛn ye ?\n\n1️⃣ Sow / familles\n2️⃣ Kalanso\n3️⃣ Furaso\n4️⃣ Ji pompe\n5️⃣ Wɛrɛ"
+  },
+
   duration: {
     fr: "Depuis *combien de temps* l'installation ne fonctionne plus ?\n_(Ex: 2 jours, 1 semaine, 1 mois)_",
     en: "For *how long* has the installation not been working?\n_(E.g: 2 days, 1 week, 1 month)_",
@@ -199,7 +211,6 @@ async function send(to, body) {
   const from = process.env.TWILIO_WHATSAPP_NUMBER.startsWith('whatsapp:')
     ? process.env.TWILIO_WHATSAPP_NUMBER
     : `whatsapp:${process.env.TWILIO_WHATSAPP_NUMBER}`;
-  console.log(`DEBUG send → from: "${from}" to: "whatsapp:${to}"`);
   await twilioCli.messages.create({
     from,
     to: `whatsapp:${to}`,
@@ -225,7 +236,7 @@ app.post('/webhook', async (req, res) => {
     if (!conv) {
       const lang = await detectLanguage(body);
       const { data: nc } = await db.from('conversations')
-        .insert({ phone, language: lang, step: 1, state: {} }).select().single();
+        .insert({ phone, language: lang, step: 0, state: {} }).select().single();
       conv = nc;
       await send(phone, t('welcome', lang));
       return;
@@ -237,6 +248,7 @@ app.post('/webhook', async (req, res) => {
     let next    = step + 1;
 
     // Handle photo upload helper
+    // Helper: upload photo + analyse Claude
     const uploadIfMedia = async (type, context) => {
       if (!mediaUrl) return;
       const url = await uploadPhoto(mediaUrl, conv.id, type);
@@ -244,28 +256,80 @@ app.post('/webhook', async (req, res) => {
       state.photos = [...(state.photos || []), { type, url, analysis }];
     };
 
+    // Helper: messages d'aide photo par langue
+    const photoHelp = {
+      fr: (hint) => `📸 Merci d'envoyer une *photo* ${hint}\n\nSi vous ne pouvez pas, répondez *SKIP* pour passer.`,
+      en: (hint) => `📸 Please send a *photo* ${hint}\n\nIf you can't, reply *SKIP* to continue.`,
+      sw: (hint) => `📸 Tafadhali tuma *picha* ${hint}\n\nUkishindwa, jibu *SKIP* kuendelea.`,
+      wo: (hint) => `📸 Yónneel *litrat* ${hint}\n\nBu mën ul, def *SKIP*.`,
+      bm: (hint) => `📸 *Fɔtɔ* ci dɔ ${hint}\n\nNi i ma se, sɛbɛn *SKIP*.`,
+      fon: (hint) => `📸 Sɛ́nd *foto* ɖé ${hint}\n\nEnyi a sixu ǎ, wlan *SKIP*.`,
+      ha: (hint) => `📸 Aika *hoto* ${hint}\n\nIn ba za ku iya ba, rubuta *SKIP*.`,
+      yo: (hint) => `📸 Fi *fọ́tò* ránṣẹ́ ${hint}\n\nTí o kò bá lè, dahùn *SKIP*.`,
+      dyu: (hint) => `📸 *Fɔtɔ* ci dɔ ${hint}\n\nNi i ma se, sɛbɛn *SKIP*.`
+    };
+    const ph = photoHelp[lang] || photoHelp.fr;
+    const isSkip = body.toUpperCase() === 'SKIP';
+
     switch(step) {
-      case 1:  state.location      = body; await send(phone, t('people', lang));    break;
-      case 2:  state.people_count  = body; await send(phone, t('duration', lang));  break;
-      case 3:  state.offline_duration = body; await send(phone, t('symptom', lang)); break;
-      case 4:  state.symptom       = body; await send(phone, t('event', lang));     break;
-      case 5:  state.recent_event  = body; await send(phone, t('inv_far', lang));   break;
-      case 6:  await uploadIfMedia('inverter_far',       'inverter main box far shot');        await send(phone, t('inv_brand', lang));     break;
-      case 7:  await uploadIfMedia('inverter_brand',     'inverter label brand model numbers'); await send(phone, t('inv_screen', lang));    break;
-      case 8:  await uploadIfMedia('inverter_screen',    'inverter screen error codes display');await send(phone, t('bat_far', lang));       break;
-      case 9:  await uploadIfMedia('batteries_far',      'battery bank far shot count units'); await send(phone, t('bat_brand', lang));     break;
-      case 10: await uploadIfMedia('battery_brand',      'battery label brand capacity voltage');await send(phone, t('bat_terminals', lang)); break;
-      case 11: await uploadIfMedia('battery_terminals',  'battery terminals corrosion cables'); await send(phone, t('panels_far', lang));    break;
-      case 12: await uploadIfMedia('panels_far',         'solar panels far shot roof count');  await send(phone, t('panels_close', lang));  break;
-      case 13: await uploadIfMedia('panel_close',        'solar panel close-up cracks dirt');  await send(phone, t('tableau', lang));       break;
-      case 14: await uploadIfMedia('tableau',            'electrical panel fuses breakers');   await send(phone, t('contact', lang));       break;
+      case 1:  state.location           = body; await send(phone, t('people', lang));    break;
+      case 2:  state.people_count       = body; await send(phone, t('site_type', lang)); break;
+      case 3:  state.site_type          = body; await send(phone, t('duration', lang));  break;
+      case 4:  state.offline_duration   = body; await send(phone, t('symptom', lang));   break;
+      case 5:  state.symptom            = body; await send(phone, t('event', lang));      break;
+      case 6:  state.recent_event       = body; await send(phone, t('inv_far', lang));    break;
+
+      case 7:
+        if (!mediaUrl && !isSkip) { await send(phone, ph('de la boîte principale (de loin)')); return; }
+        await uploadIfMedia('inverter_far', 'inverter main box far shot');
+        await send(phone, t('inv_brand', lang)); break;
+
+      case 8:
+        if (!mediaUrl && !isSkip) { await send(phone, ph("de l'étiquette (marque et modèle)")); return; }
+        await uploadIfMedia('inverter_brand', 'inverter label brand model numbers');
+        await send(phone, t('inv_screen', lang)); break;
+
+      case 9:
+        if (!mediaUrl && !isSkip) { await send(phone, ph("de l'écran ou des voyants")); return; }
+        await uploadIfMedia('inverter_screen', 'inverter screen error codes display');
+        await send(phone, t('bat_far', lang)); break;
+
+      case 10:
+        if (!mediaUrl && !isSkip) { await send(phone, ph('de toutes les batteries (de loin)')); return; }
+        await uploadIfMedia('batteries_far', 'battery bank far shot count units');
+        await send(phone, t('bat_brand', lang)); break;
+
+      case 11:
+        if (!mediaUrl && !isSkip) { await send(phone, ph("de l'étiquette sur une batterie")); return; }
+        await uploadIfMedia('battery_brand', 'battery label brand capacity voltage');
+        await send(phone, t('bat_terminals', lang)); break;
+
+      case 12:
+        if (!mediaUrl && !isSkip) { await send(phone, ph('des bornes et câbles des batteries')); return; }
+        await uploadIfMedia('battery_terminals', 'battery terminals corrosion cables');
+        await send(phone, t('panels_far', lang)); break;
+
+      case 13:
+        if (!mediaUrl && !isSkip) { await send(phone, ph('des panneaux sur le toit (de loin)')); return; }
+        await uploadIfMedia('panels_far', 'solar panels far shot roof count');
+        await send(phone, t('panels_close', lang)); break;
+
+      case 14:
+        if (!mediaUrl && !isSkip) { await send(phone, ph('des panneaux (de proche si abîmés)')); return; }
+        await uploadIfMedia('panel_close', 'solar panel close-up cracks dirt');
+        await send(phone, t('tableau', lang)); break;
 
       case 15:
+        if (!mediaUrl && !isSkip) { await send(phone, ph('du tableau électrique ou des fusibles')); return; }
+        await uploadIfMedia('tableau', 'electrical panel fuses breakers');
+        await send(phone, t('contact', lang)); break;
+
+      case 16:
         state.contact = body;
         await send(phone, t('analyzing', lang));
 
         // Save state first
-        await db.from('conversations').update({ state, step: 16, status: 'complete' }).eq('id', conv.id);
+        await db.from('conversations').update({ state, step: 17, status: "complete" }).eq('id', conv.id);
 
         // Generate AI diagnostic
         const diag = await generateDiagnostic(state, lang);
@@ -297,7 +361,7 @@ app.post('/webhook', async (req, res) => {
         if (/bonjour|hello|nouveau|new|start/i.test(body)) {
           await db.from('conversations').update({ status: 'abandoned' }).eq('id', conv.id);
           const newLang = await detectLanguage(body);
-          await db.from('conversations').insert({ phone, language: newLang, step: 1, state: {} });
+          await db.from("conversations").insert({ phone, language: newLang, step: 0, state: {} });
           await send(phone, t('welcome', newLang));
         }
         return;
