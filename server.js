@@ -23,8 +23,8 @@ const twilioCli = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH
 // ── TRANSLATIONS ─────────────────────────────────────────────────────────────
 const T = {
   welcome: {
-    fr:  "Bonjour ! 🌞 Je suis l'assistant Lumoki.\nJe vais vous aider à signaler une installation solaire en panne. Cela prend environ 10 minutes.\n\nCommençons ! Dans quel *pays* se trouve l'installation ?",
-    en:  "Hello! 🌞 I'm the Lumoki assistant.\nI'll help you report a broken solar installation. This takes about 10 minutes.\n\nLet's start! In which *country* is the installation?",
+    fr:  "Bonjour ! 🌞 Je suis l'assistant Lumoki.\nJe vais vous aider à signaler une installation solaire en panne. Cela prend environ 10 minutes.\n\nCommençons ! 📍 Partagez votre *position GPS* (bouton 📎 → Position)\nOu tapez *SKIP* pour saisir manuellement.",
+    en:  "Hello! 🌞 I'm the Lumoki assistant.\nI'll help you report a broken solar installation. This takes about 10 minutes.\n\nLet's start! 📍 Share your *GPS location* (button 📎 → Location)\nOr type *SKIP* to enter manually.",
     wo:  "Salaam ! 🌞 Man mooy assistant Lumoki.\nDanga ma jënd ak installation solaire bu dëkk. Amna yënn fukki minit.\n\nFan la installation bi nekk ? *Réew* ak *dëkk* ?",
     bm:  "I ni ce ! 🌞 Ne ye Lumoki ka dɛmɛbaga ye.\nN bena i dɛmɛ solar installation minɛnin ka sɛbɛn.\n\nJamana ni dugu jumɛn na installation in be ?",
     sw:  "Habari! 🌞 Mimi ni msaidizi wa Lumoki.\nNitakusaidia kuripoti mfumo wa nishati ya jua uliovunjika. Inachukua dakika 10.\n\nMfumo uko nchi gani na kijiji gani?",
@@ -78,6 +78,17 @@ const T = {
     dyu: "Installation jɛn ye ?\n\n1️⃣ Sow / familles\n2️⃣ Kalanso\n3️⃣ Furaso\n4️⃣ Ji pompe\n5️⃣ Wɛrɛ"
   },
 
+  confirm_location: {
+    fr: (commune, country) => `📍 Vous êtes à *${commune}*, *${country}*\nC'est bien l'emplacement de l'installation ? (oui / non)\n_Si non, tapez le nom du village/commune._`,
+    en: (commune, country) => `📍 You are in *${commune}*, *${country}*\nIs this the installation location? (yes / no)\n_If not, type the village/commune name._`,
+    sw: (commune, country) => `📍 Uko *${commune}*, *${country}*\nHii ndiyo mahali pa mfumo? (ndiyo / hapana)`,
+    wo: (commune, country) => `📍 Yëgël ci *${commune}*, *${country}*\nMoo rekk bi installation bi nekk? (waaw / déedéet)`,
+    bm: (commune, country) => `📍 I bɛ *${commune}*, *${country}*\nInstallation in bɛ yen wa? (ɔwɔ / ayi)`,
+    fon: (commune, country) => `📍 A ɖò *${commune}*, *${country}*\nÉ nyí finɛ solar ɔ ɖè? (ɛɛn / eyi)`,
+    ha: (commune, country) => `📍 Kuna *${commune}*, *${country}*\nNan ne tsarin yake? (eh / a'a)`,
+    yo: (commune, country) => `📍 O wà ní *${commune}*, *${country}*\nÍbẹ̀ ni ètò wà? (bẹ́ẹ̀ni / rárá)`,
+    dyu: (commune, country) => `📍 I bɛ *${commune}*, *${country}*\nInstallation in bɛ yen wa? (ɔwɔ / ayi)`
+  },
   confirm: {
     fr: (val) => `Vous avez répondu : *${val}*\nC'est bien ça ? (oui / non)`,
     en: (val) => `You answered: *${val}*\nIs that correct? (yes / no)`,
@@ -178,6 +189,30 @@ const COUNTRY_MAP = {
   '11': { code: 'ZMB', name: 'Zambie' },
   '12': { code: 'AFR', name: 'Autre' }
 };
+
+// ── REVERSE GEOCODING (GPS → commune, pays) ───────────────────────────────────
+async function reverseGeocode(lat, lng) {
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=10&addressdetails=1`;
+    const r = await fetch(url, { headers: { 'User-Agent': 'LumokiBot/1.0 (lumoki.africa)' } });
+    const data = await r.json();
+    const addr = data.address || {};
+    // Extract commune level — try multiple fields in priority order
+    const commune = addr.municipality || addr.town || addr.city || addr.village || addr.county || addr.suburb || '';
+    const country = addr.country || '';
+    const countryCode = (addr.country_code || '').toUpperCase();
+    // Map ISO2 to our 3-letter codes
+    const iso2map = {
+      'BJ':'BEN','SN':'SEN','ML':'MLI','BF':'BFA','GN':'GIN',
+      'CI':'CIV','NG':'NGA','GH':'GHA','TZ':'TZA','UG':'UGA','ZM':'ZMB'
+    };
+    const code3 = iso2map[countryCode] || 'AFR';
+    return { commune, country, code3 };
+  } catch(e) {
+    console.error('Geocode error:', e.message);
+    return null;
+  }
+}
 
 async function detectLanguage(text) {
   try {
@@ -523,83 +558,161 @@ app.post('/webhook', async (req, res) => {
     };
 
     switch(step) {
-      case 1:
-        await confirmOrSave('location', body, t('people', lang), 2);
-        break;
-      case 2:
-        await confirmOrSave('people_count', body, t('site_type', lang), 3);
-        break;
-      case 3:  state.site_type          = body; await send(phone, t('duration', lang));  break;
-      case 4:
-        await confirmOrSave('offline_duration', body, t('symptom', lang), 5);
-        break;
-      case 5:  state.symptom            = body; await send(phone, t('event', lang));      break;
-      case 6:  state.recent_event       = body; await send(phone, t('gps', lang));    break;
 
-      case 7: {
-        // GPS location
+      // ── STEP 1: GPS first ────────────────────────────────────────────────────
+      case 1: {
         const lat = req.body.Latitude;
         const lng = req.body.Longitude;
+
         if (lat && lng) {
+          // GPS shared — reverse geocode
           state.lat = parseFloat(lat);
           state.lng = parseFloat(lng);
-          await send(phone, t('inv_far', lang));
-        } else if (isSkip || body) {
-          // No GPS shared — continue anyway
-          await send(phone, t('inv_far', lang));
-        } else {
-          await send(phone, t('gps', lang));
-          return;
+          const geo = await reverseGeocode(state.lat, state.lng);
+          if (geo && geo.commune && geo.country) {
+            state.country_code  = geo.code3;
+            state.country_name  = geo.country;
+            state.village       = geo.commune;
+            state.geo_confirmed = false;
+            const confirmFn = T.confirm_location[lang] || T.confirm_location.fr;
+            await send(phone, confirmFn(geo.commune, geo.country));
+            // Stay on step 1 waiting for confirmation
+            next = 1;
+          } else {
+            // Geocoding failed — ask manually
+            await send(phone, t('country', lang));
+            next = 2; // skip to manual country
+          }
+        } else if (isSkip || body.length > 0) {
+          // No GPS — go to manual country selection
+          await send(phone, t('country', lang));
+          next = 2;
         }
         break;
       }
 
-      case 8:
+      // ── STEP 1 confirmation of GPS location ──────────────────────────────────
+      // (step stays at 1 after GPS share, user confirms or corrects village)
+      // We detect confirmation here via pending_geo flag
+      // Actually we handle re-entry to step 1 after geo:
+      // If state.lat exists and state.geo_confirmed is false → waiting for confirm
+      // Handled by checking state in step 1 re-entry:
+
+      // ── STEP 2: Manual country (fallback if no GPS or geocoding failed) ──────
+      case 2: {
+        // Check if we're confirming GPS location (step was kept at 1 → next=2 after confirm)
+        if (state.lat && state.village && !state.geo_confirmed) {
+          // User is responding to GPS location confirmation
+          if (isYes) {
+            state.geo_confirmed = true;
+            await send(phone, t('people', lang));
+            next = 4; // skip country+village manual steps
+          } else {
+            // Not correct — ask them to type the village name
+            const correct村 = {
+              fr: `D'accord ! Tapez le nom du *village ou de la commune* :`,
+              en: `OK! Type the *village or commune* name:`,
+              sw: `Sawa! Andika jina la *kijiji au wilaya*:`,
+              wo: `Waaw ! Bind *turu dëkk wala commune* bi:`,
+              bm: `Aw ! *Dugu wala commune* tɔgɔ sɛbɛn:`,
+              fon: `Enyi! Wlan nyikɔ *toxo wala commune* ɔ tɔn:`,
+              ha: `To! Rubuta sunan *gari ko gundumar*:`,
+              yo: `Ó dára! Kọ orúkọ *abúlé tàbí ìgbèríko*:`,
+              dyu: `Aw ! *Dugu wala commune* tɔgɔ sɛbɛn:`
+            };
+            await send(phone, correct村[lang] || correct村.fr);
+            state.awaiting_village_correction = true;
+            next = 2; // stay here for village correction
+          }
+        } else if (state.awaiting_village_correction) {
+          // User typed corrected village name
+          state.village = body;
+          state.geo_confirmed = true;
+          delete state.awaiting_village_correction;
+          await send(phone, t('people', lang));
+          next = 4;
+        } else {
+          // Manual flow — user chose country number
+          const c = COUNTRY_MAP[body.trim()] || COUNTRY_MAP['12'];
+          state.country_code = c.code;
+          state.country_name = c.name;
+          await send(phone, t('village', lang));
+          next = 3;
+        }
+        break;
+      }
+
+      // ── STEP 3: Manual village input ─────────────────────────────────────────
+      case 3:
+        await confirmOrSave('village', body, t('people', lang), 4);
+        break;
+
+      // ── STEP 4: People count ─────────────────────────────────────────────────
+      case 4:
+        await confirmOrSave('people_count', body, t('site_type', lang), 5);
+        break;
+
+      // ── STEP 5: Site type ────────────────────────────────────────────────────
+      case 5:  state.site_type = body; await send(phone, t('duration', lang)); break;
+
+      // ── STEP 6: Outage duration ──────────────────────────────────────────────
+      case 6:
+        await confirmOrSave('offline_duration', body, t('symptom', lang), 7);
+        break;
+
+      // ── STEP 7: Symptom ──────────────────────────────────────────────────────
+      case 7:  state.symptom = body; await send(phone, t('event', lang)); break;
+
+      // ── STEP 8: Recent event ─────────────────────────────────────────────────
+      case 8:  state.recent_event = body; await send(phone, t('inv_far', lang)); break;
+
+      // ── STEPS 9-17: Photos ────────────────────────────────────────────────────
+      case 9:
         if (!mediaUrl && !isSkip) { await send(phone, ph('de la boîte principale (de loin)')); return; }
         await uploadIfMedia('inverter_far', 'inverter main box far shot');
         await send(phone, t('inv_brand', lang)); break;
 
-      case 9:
+      case 10:
         if (!mediaUrl && !isSkip) { await send(phone, ph("de l'étiquette (marque et modèle)")); return; }
         await uploadIfMedia('inverter_brand', 'inverter label brand model numbers');
         await send(phone, t('inv_screen', lang)); break;
 
-      case 10:
+      case 11:
         if (!mediaUrl && !isSkip) { await send(phone, ph("de l'écran ou des voyants")); return; }
         await uploadIfMedia('inverter_screen', 'inverter screen error codes display');
         await send(phone, t('bat_far', lang)); break;
 
-      case 11:
+      case 12:
         if (!mediaUrl && !isSkip) { await send(phone, ph('de toutes les batteries (de loin)')); return; }
         await uploadIfMedia('batteries_far', 'battery bank far shot count units');
         await send(phone, t('bat_brand', lang)); break;
 
-      case 12:
+      case 13:
         if (!mediaUrl && !isSkip) { await send(phone, ph("de l'étiquette sur une batterie")); return; }
         await uploadIfMedia('battery_brand', 'battery label brand capacity voltage');
         await send(phone, t('bat_terminals', lang)); break;
 
-      case 13:
+      case 14:
         if (!mediaUrl && !isSkip) { await send(phone, ph('des bornes et câbles des batteries')); return; }
         await uploadIfMedia('battery_terminals', 'battery terminals corrosion cables');
         await send(phone, t('panels_far', lang)); break;
 
-      case 14:
+      case 15:
         if (!mediaUrl && !isSkip) { await send(phone, ph('des panneaux sur le toit (de loin)')); return; }
         await uploadIfMedia('panels_far', 'solar panels far shot roof count');
         await send(phone, t('panels_close', lang)); break;
 
-      case 15:
+      case 16:
         if (!mediaUrl && !isSkip) { await send(phone, ph('des panneaux (de proche si abîmés)')); return; }
         await uploadIfMedia('panel_close', 'solar panel close-up cracks dirt');
         await send(phone, t('tableau', lang)); break;
 
-      case 16:
+      case 17:
         if (!mediaUrl && !isSkip) { await send(phone, ph('du tableau électrique ou des fusibles')); return; }
         await uploadIfMedia('tableau', 'electrical panel fuses breakers');
         await send(phone, t('contact', lang)); break;
 
-      case 17:
+      case 18:
         if (state.pending_confirm === 'contact') {
           if (isYes) {
             state.contact = state.pending_contact;
@@ -623,7 +736,7 @@ app.post('/webhook', async (req, res) => {
         await send(phone, t('analyzing', lang));
 
         // Save state first
-        await db.from('conversations').update({ state, step: 18, status: "complete" }).eq('id', conv.id);
+        await db.from('conversations').update({ state, step: 19, status: "complete" }).eq('id', conv.id);
 
         // Generate AI diagnostic
         const diag = await generateDiagnostic(state, lang);
