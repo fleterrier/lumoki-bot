@@ -260,8 +260,12 @@ async function uploadPhoto(mediaUrl, convId, type) {
     const auth    = 'Basic ' + Buffer.from(`${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`).toString('base64');
     const r       = await fetch(mediaUrl, { headers: { Authorization: auth } });
     const buf     = await r.buffer();
-    const mimeType = r.headers.get('content-type') || 'image/jpeg';
-    const ext     = mimeType.includes('png') ? 'png' : 'jpg';
+    const rawMime = r.headers.get('content-type') || 'image/jpeg';
+    // Normalize to supported types — iPhone sends image/heic etc.
+    const mimeType = rawMime.includes('png') ? 'image/png' :
+                     rawMime.includes('gif') ? 'image/gif' :
+                     rawMime.includes('webp') ? 'image/webp' : 'image/jpeg';
+    const ext = mimeType.includes('png') ? 'png' : 'jpg';
     const path    = `conv-${convId}/${type}_${Date.now()}.${ext}`;
     const { error } = await db.storage.from('site-photos').upload(path, buf, { contentType: mimeType, upsert: true });
     if (error) throw error;
@@ -292,8 +296,11 @@ async function generateDiagnostic(state, lang) {
   const imageBlocks = [];
   for (const p of (state.photos || [])) {
     if (p.base64 && p.mimeType) {
+      // Claude only supports jpeg/png/gif/webp — normalize everything else to jpeg
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      const safeMime = allowedTypes.includes(p.mimeType) ? p.mimeType : 'image/jpeg';
       imageBlocks.push({ type: 'text', text: `Photo type: ${p.type} | Pre-analysis: ${p.analysis?.observations || 'none'}` });
-      imageBlocks.push({ type: 'image', source: { type: 'base64', media_type: p.mimeType, data: p.base64 } });
+      imageBlocks.push({ type: 'image', source: { type: 'base64', media_type: safeMime, data: p.base64 } });
     } else if (p.analysis?.observations) {
       imageBlocks.push({ type: 'text', text: `[${p.type}] ${p.analysis.observations}` });
     }
@@ -499,10 +506,12 @@ app.post('/webhook', async (req, res) => {
   console.log(`📩 Incoming | phone: ${phone} | body: "${body}" | media: ${mediaUrl ? 'yes' : 'no'}`);
   if (!phone) return;
 
+  let conv = null;
   try {
     // Load or create conversation
-    let { data: conv, error: convErr } = await db.from('conversations')
+    let { data: convData, error: convErr } = await db.from('conversations')
       .select('*').eq('phone', phone).eq('status', 'in_progress').single();
+    conv = convData;
 
     console.log(`🔍 Conv loaded: ${conv ? `id=${conv.id} step=${conv.step}` : 'none'} | err: ${convErr?.code || 'ok'}`);
 
@@ -755,35 +764,59 @@ app.post('/webhook', async (req, res) => {
         // Save state first
         await db.from('conversations').update({ state, step: 19, status: "complete" }).eq('id', conv.id);
 
-        // Generate AI diagnostic
-        const diag = await generateDiagnostic(state, lang);
+        // Generate AI diagnostic — wrapped in try/catch so failure doesn't block site creation
+        let diag = {};
+        try {
+          diag = await generateDiagnostic(state, lang);
+          console.log('✅ Diagnostic generated, urgency:', diag.urgency);
+        } catch(diagErr) {
+          console.error('⚠️ Diagnostic failed (continuing):', diagErr.message);
+          diag = {
+            fault_primary: 'Diagnostic IA indisponible — analyse manuelle requise',
+            fault_secondary: '', urgency: 3, confidence: 0,
+            panel_kw: 0, battery_count: 0, battery_brand: '', inverter_brand: '',
+            inverter_model: '', inverter_error_code: '',
+            parts_needed: [], total_cost_est: 0,
+            ai_report: 'Analyse automatique échouée. Les photos et données brutes sont disponibles pour analyse manuelle.',
+            ai_instructions: 'Contacter le reporter directement pour compléter le diagnostic.'
+          };
+        }
 
         // Create site in Supabase
         const { count } = await db.from('sites').select('*', { count: 'exact', head: true });
         const year = new Date().getFullYear();
-
-        // Country code from location text
         const countryCode = state.country_code || 'AFR';
         const siteId = `${countryCode}-${year}-${String((count || 0) + 1).padStart(3, '0')}`;
         const country = state.country_name || state.village || state.location || 'Unknown';
+        const category = ({'1':'community','2':'school','3':'health','4':'water','5':'business'})[state.site_type] || 'community';
 
-        await db.from('sites').insert({
-          id: siteId, name: `${state.village || state.location || 'Unknown'} — Solar Site`,
-          lat: state.lat || 0, lng: state.lng || 0, status: 'offline', category: 'community',
+        const { error: siteErr } = await db.from('sites').insert({
+          id: siteId,
+          name: `${state.village || state.location || 'Unknown'} — Solar Site`,
+          lat: state.lat || 0, lng: state.lng || 0,
+          status: 'offline', category,
           kw: diag.panel_kw || 0, country, region: 'west',
-          category: ({'1':'community','2':'school','3':'health','4':'water','5':'business'})[state.site_type] || 'community',
           people: parseInt(state.people_count) || 0,
           photo_url: state.photos?.[0]?.url || null,
-          fault: diag.fault_primary,
+          fault: diag.fault_primary || 'À diagnostiquer',
           sourced_at: new Date().toISOString().split('T')[0]
         });
+        if (siteErr) console.error('⚠️ Site insert error:', siteErr.message);
+        else console.log('✅ Site created:', siteId);
 
         await db.from('diagnostics').insert({
           site_id: siteId, conversation_id: conv.id, ...diag, photos: state.photos
-        });
+        }).then(({error: e}) => e && console.error('⚠️ Diag insert error:', e.message));
 
         await db.from('conversations').update({ site_id: siteId }).eq('id', conv.id);
-        await notifyTeam(siteId, diag, state);
+
+        // Send email — also wrapped
+        try {
+          await notifyTeam(siteId, diag, state);
+          console.log('✅ Email sent for', siteId);
+        } catch(emailErr) {
+          console.error('⚠️ Email failed:', emailErr.message);
+        }
 
         // Confirmation message to reporter
         const doneMsg = {
