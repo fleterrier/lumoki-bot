@@ -559,57 +559,28 @@ app.post('/webhook', async (req, res) => {
 
     switch(step) {
 
-      // ── STEP 1: GPS first ────────────────────────────────────────────────────
+      // ── STEP 1: GPS + confirmation (all in one step) ────────────────────────
       case 1: {
         const lat = req.body.Latitude;
         const lng = req.body.Longitude;
 
-        if (lat && lng) {
-          // GPS shared — reverse geocode
-          state.lat = parseFloat(lat);
-          state.lng = parseFloat(lng);
-          const geo = await reverseGeocode(state.lat, state.lng);
-          if (geo && geo.commune && geo.country) {
-            state.country_code  = geo.code3;
-            state.country_name  = geo.country;
-            state.village       = geo.commune;
-            state.geo_confirmed = false;
-            const confirmFn = T.confirm_location[lang] || T.confirm_location.fr;
-            await send(phone, confirmFn(geo.commune, geo.country));
-            // Stay on step 1 waiting for confirmation
-            next = 1;
-          } else {
-            // Geocoding failed — ask manually
-            await send(phone, t('country', lang));
-            next = 2; // skip to manual country
-          }
-        } else if (isSkip || body.length > 0) {
-          // No GPS — go to manual country selection
-          await send(phone, t('country', lang));
-          next = 2;
-        }
-        break;
-      }
+        if (state.awaiting_village_correction) {
+          // User typed corrected village name after saying No
+          state.village = body;
+          state.geo_confirmed = true;
+          delete state.awaiting_village_correction;
+          await send(phone, t('site_type', lang));
+          next = 4;
 
-      // ── STEP 1 confirmation of GPS location ──────────────────────────────────
-      // (step stays at 1 after GPS share, user confirms or corrects village)
-      // We detect confirmation here via pending_geo flag
-      // Actually we handle re-entry to step 1 after geo:
-      // If state.lat exists and state.geo_confirmed is false → waiting for confirm
-      // Handled by checking state in step 1 re-entry:
-
-      // ── STEP 2: Manual country (fallback if no GPS or geocoding failed) ──────
-      case 2: {
-        // Check if we're confirming GPS location (step was kept at 1 → next=2 after confirm)
-        if (state.lat && state.village && !state.geo_confirmed) {
-          // User is responding to GPS location confirmation
+        } else if (state.lat && state.village && state.geo_confirmed === false) {
+          // GPS was received, we sent the confirmation — now user is responding
           if (isYes) {
             state.geo_confirmed = true;
             await send(phone, t('site_type', lang));
-            next = 5; // skip country+village+people → go to site_type
+            next = 4;
           } else {
-            // Not correct — ask them to type the village name
-            const correct村 = {
+            // No — ask to type village name
+            const correctVillage = {
               fr: `D'accord ! Tapez le nom du *village ou de la commune* :`,
               en: `OK! Type the *village or commune* name:`,
               sw: `Sawa! Andika jina la *kijiji au wilaya*:`,
@@ -620,25 +591,44 @@ app.post('/webhook', async (req, res) => {
               yo: `Ó dára! Kọ orúkọ *abúlé tàbí ìgbèríko*:`,
               dyu: `Aw ! *Dugu wala commune* tɔgɔ sɛbɛn:`
             };
-            await send(phone, correct村[lang] || correct村.fr);
+            await send(phone, correctVillage[lang] || correctVillage.fr);
             state.awaiting_village_correction = true;
-            next = 2; // stay here for village correction
+            next = 1; // stay on step 1
           }
-        } else if (state.awaiting_village_correction) {
-          // User typed corrected village name
-          state.village = body;
-          state.geo_confirmed = true;
-          delete state.awaiting_village_correction;
-          await send(phone, t('site_type', lang));
-          next = 5;
+
+        } else if (lat && lng) {
+          // Fresh GPS received — reverse geocode
+          state.lat = parseFloat(lat);
+          state.lng = parseFloat(lng);
+          const geo = await reverseGeocode(state.lat, state.lng);
+          if (geo && geo.commune && geo.country) {
+            state.country_code  = geo.code3;
+            state.country_name  = geo.country;
+            state.village       = geo.commune;
+            state.geo_confirmed = false;
+            const confirmFn = T.confirm_location[lang] || T.confirm_location.fr;
+            await send(phone, confirmFn(geo.commune, geo.country));
+            next = 1; // stay on step 1 for confirmation
+          } else {
+            // Geocoding failed — go manual
+            await send(phone, t('country', lang));
+            next = 2;
+          }
         } else {
-          // Manual flow — user chose country number
-          const c = COUNTRY_MAP[body.trim()] || COUNTRY_MAP['12'];
-          state.country_code = c.code;
-          state.country_name = c.name;
-          await send(phone, t('village', lang));
-          next = 3;
+          // No GPS shared (text or SKIP) — go to manual country selection
+          await send(phone, t('country', lang));
+          next = 2;
         }
+        break;
+      }
+
+      // ── STEP 2: Manual country ────────────────────────────────────────────────
+      case 2: {
+        const c = COUNTRY_MAP[body.trim()] || COUNTRY_MAP['12'];
+        state.country_code = c.code;
+        state.country_name = c.name;
+        await send(phone, t('village', lang));
+        next = 3;
         break;
       }
 
