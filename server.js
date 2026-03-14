@@ -55,19 +55,19 @@ const T = {
     yo: "Ní *abúlé tàbí ìlú* wo gangan?",
     dyu: "*Dugu* jumɛn na ?"
   },
-  people: {
-    fr: "Merci ! Combien de *familles ou personnes* utilisent cette installation ?",
-    en: "Thanks! How many *families or people* use this installation?",
-    wo: "Jërëjëf ! Naka *jëkër yi walla nit ñi* ngiy jëfandikoo installation bii ?",
-    bm: "I ni ce ! *Somɔgɔ wɛrɛ joli* bɛ installation in kɛlɛ ?",
-    sw: "Asante! *Familia au watu* wangapi wanatumia mfumo huu?",
-    ha: "Na gode! Yaya *iyalai ko mutane* suke amfani da wannan tsarin?",
-    yo: "Ẹ jẹ́ ká dúpẹ́! Iye *ìdílé tàbí ènìyàn* mélòó ni ń lo ètò yìí?",
-    fon: "Akpé! *Xwédo lɛ kpo gbɛtɔ lɛ kpo* wɛ nɛ nú solar ɔ bló?",
-    dyu: "I ni ce ! *Somɔgɔ wɛrɛ joli* bɛ installation in kɛlɛ ?"
+  families: {
+    fr: "Combien de *familles* bénéficient de cette installation ? _(chiffre approximatif)_",
+    en: "How many *families* benefit from this installation? _(approximate number)_",
+    wo: "Jëkër *jëm* yi ngiy jëfandikoo installation bii ? _(nimero bu mujj)_",
+    bm: "*Somɔgɔ joli* bɛ installation in kɛlɛ ? _(joli caman)_",
+    sw: "*Familia ngapi* zinanufaika na mfumo huu? _(nambari ya takriban)_",
+    ha: "*Iyalai nawa* suke amfani da wannan tsarin? _(adadi na daidai)_",
+    yo: "*Ìdílé mélòó* ni ń jẹ àǹfààní ètò yìí? _(iye tó sún mọ́)_",
+    fon: "*Xwédo wɛ nɛ nú* solar ɔ bló? _(tɛnmɛ bló)_",
+    dyu: "*Somɔgɔ joli* bɛ installation in kɛlɛ ? _(joli caman)_"
   },
   site_type: {
-    fr: "Quel type dinstallation ?\n\n1️⃣ Maisons / familles\n2️⃣ École\n3️⃣ Dispensaire / santé\n4️⃣ Pompe à eau\n5️⃣ Autre",
+    fr: "Quel type d'installation ?\n\n1️⃣ Maisons / familles\n2️⃣ École\n3️⃣ Dispensaire / santé\n4️⃣ Pompe à eau\n5️⃣ Autre",
     en: "What type of installation?\n\n1️⃣ Homes / families\n2️⃣ School\n3️⃣ Health clinic\n4️⃣ Water pump\n5️⃣ Other",
     sw: "Aina gani ya mfumo?\n\n1️⃣ Nyumba / familia\n2️⃣ Shule\n3️⃣ Kliniki\n4️⃣ Pampu ya maji\n5️⃣ Nyingine",
     wo: "Ana install bi ?\n\n1️⃣ Kër yi / familles\n2️⃣ Daara\n3️⃣ Dispensaire\n4️⃣ Pompe\n5️⃣ Yeneen",
@@ -192,26 +192,55 @@ const COUNTRY_MAP = {
 
 // ── REVERSE GEOCODING (GPS → commune, pays) ───────────────────────────────────
 async function reverseGeocode(lat, lng) {
-  try {
-    const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=10&addressdetails=1`;
-    const r = await fetch(url, { headers: { 'User-Agent': 'LumokiBot/1.0 (lumoki.africa)' } });
-    const data = await r.json();
-    const addr = data.address || {};
-    // Extract commune level — try multiple fields in priority order
-    const commune = addr.municipality || addr.town || addr.city || addr.village || addr.county || addr.suburb || '';
-    const country = addr.country || '';
-    const countryCode = (addr.country_code || '').toUpperCase();
-    // Map ISO2 to our 3-letter codes
-    const iso2map = {
-      'BJ':'BEN','SN':'SEN','ML':'MLI','BF':'BFA','GN':'GIN',
-      'CI':'CIV','NG':'NGA','GH':'GHA','TZ':'TZA','UG':'UGA','ZM':'ZMB'
-    };
-    const code3 = iso2map[countryCode] || 'AFR';
-    return { commune, country, code3 };
-  } catch(e) {
-    console.error('Geocode error:', e.message);
-    return null;
+  // Try Nominatim first, fallback to BigDataCloud (no key needed)
+  const attempts = [
+    async () => {
+      const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=10&addressdetails=1&accept-language=fr`;
+      const r = await fetch(url, {
+        headers: {
+          'User-Agent': 'Lumoki/1.0 contact@lumoki.africa',
+          'Accept': 'application/json'
+        }
+      });
+      const text = await r.text();
+      if (text.trim().startsWith('<')) throw new Error('Got XML instead of JSON');
+      const data = JSON.parse(text);
+      const addr = data.address || {};
+      const commune = addr.municipality || addr.town || addr.city || addr.village || addr.county || addr.suburb || '';
+      const country = addr.country || '';
+      const countryCode = (addr.country_code || '').toUpperCase();
+      return { commune, country, countryCode };
+    },
+    async () => {
+      const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=fr`;
+      const r = await fetch(url);
+      const data = await r.json();
+      const commune = data.locality || data.city || data.principalSubdivision || '';
+      const country = data.countryName || '';
+      const countryCode = (data.countryCode || '').toUpperCase();
+      return { commune, country, countryCode };
+    }
+  ];
+
+  const iso2map = {
+    'BJ':'BEN','SN':'SEN','ML':'MLI','BF':'BFA','GN':'GIN',
+    'CI':'CIV','NG':'NGA','GH':'GHA','TZ':'TZA','UG':'UGA','ZM':'ZMB'
+  };
+
+  for (const attempt of attempts) {
+    try {
+      const result = await attempt();
+      if (result && result.commune) {
+        const code3 = iso2map[result.countryCode] || 'AFR';
+        console.log('Geocode OK:', result.commune, result.country, code3);
+        return { commune: result.commune, country: result.country, code3 };
+      }
+    } catch(e) {
+      console.error('Geocode attempt failed:', e.message);
+    }
   }
+  console.error('All geocode attempts failed');
+  return null;
 }
 
 async function detectLanguage(text) {
@@ -557,7 +586,7 @@ app.post('/webhook', async (req, res) => {
       }
     };
 
-    switch(step) {
+    console.log("SWITCH step=" + step + " next=" + next + " body=" + body.substring(0,20)); switch(step) {
 
       // ── STEP 1: GPS + confirmation (all in one step) ────────────────────────
       case 1: {
@@ -638,7 +667,7 @@ app.post('/webhook', async (req, res) => {
         break;
 
       // ── STEP 4: Site type ────────────────────────────────────────────────────
-      case 4:  state.site_type = body; await send(phone, t('families', lang)); break;
+      case 4:  console.log("CASE4 hit, body=" + body); state.site_type = body; await send(phone, t('families', lang)); break;
 
       // ── STEP 5: Number of families ───────────────────────────────────────────
       case 5:
