@@ -123,9 +123,9 @@ const T = {
     dyu: "📍 I *GPS position* ci dɔ (bouton 📎 → Position)\nWala sɛbɛn *SKIP* ni i ma se."
   },
   duration: {
-    fr: "Depuis *combien de temps* l'installation ne fonctionne plus ?\n_(Ex: 2 jours, 1 semaine, 1 mois)_",
-    en: "For *how long* has the installation not been working?\n_(E.g: 2 days, 1 week, 1 month)_",
-    sw: "Kwa *muda gani* mfumo haujafanya kazi?\n_(Mfano: siku 2, wiki 1, mwezi 1)_",
+    fr: "Depuis combien de temps ?\n\n1️⃣ Moins d'un jour\n2️⃣ Moins d'une semaine\n3️⃣ Moins d'un mois\n4️⃣ Moins d'un an\n5️⃣ Plus d'un an",
+    en: "How long has it been down?\n\n1️⃣ Less than a day\n2️⃣ Less than a week\n3️⃣ Less than a month\n4️⃣ Less than a year\n5️⃣ More than a year",
+    sw: "Imekuwa chini kwa muda gani?\n\n1️⃣ Chini ya siku\n2️⃣ Chini ya wiki\n3️⃣ Chini ya mwezi\n4️⃣ Chini ya mwaka\n5️⃣ Zaidi ya mwaka",
     wo: "*Jamm* la installation bi dëkkul ?\n_(Misaal: 2 fan, 1 ayu-bés, 1 wèr)_",
     bm: "*Waati joli* bɛ a sen installation in kɛlɛ ?\n_(Misali: tile 2, dɔgɔkun 1, kalo 1)_",
     ha: "Tsarin yana rashin aiki tun *yaushe*?\n_(Misali: kwana 2, mako 1, wata 1)_",
@@ -161,7 +161,7 @@ const T = {
   bat_far:       { fr: "Maintenant les *batteries* 🔋\nPhoto *DE LOIN* pour voir *toutes* les batteries", en: "Now the *batteries* 🔋\nPhoto *FROM FAR* to see *all* batteries", sw: "Sasa *betri* 🔋\nPicha *KWA MBALI* kuona *betri zote*", wo: "Kanam *pil yi* 🔋\nLitrat gu *yomb* ngir xam *pil yi bée*", bm: "Sisan *batɛri* 🔋\nFɔtɔ ci *jan* walasa *batɛri bɛɛ* ye", ha: "Yanzu *baturin* 🔋\nHoto *daga nesa* don ganin *duk baturin*", yo: "Báyìí àwọn *batiri* 🔋\nFọ́tò *láti jíjìn* kí a rí *gbogbo batiri*", fon: "Égbé ɔ, *batri lɛ* 🔋\nFoto *dó tó* bo na mɔ *batri lɛ bǐ*", dyu: "Sisan *batɛri* 🔋\nFɔtɔ ci *jan* walasa *batɛri bɛɛ* ye" },
   bat_brand:     { fr: "Photo *PROCHE* de l'étiquette d'une batterie (marque, chiffres)", en: "*CLOSE* photo of one battery label (brand, numbers)", sw: "Picha *YA KARIBU* ya lebo ya betri moja (chapa, nambari)", wo: "Litrat gu *gudd* ci étiquette pil (marque, nimeero)", bm: "Fɔtɔ *ka gɛlɛn* ci batɛri kelen kan (marque, nimɔrɔ)", ha: "Hoto *KUSA* na lakabi a kan baturin ɗaya (alamar, lambobi)", yo: "Fọ́tò *tímọ́* ti àmì lórí batiri kan (àmì, nọ́mbà)", fon: "Foto *tɛnmɛ* sín étiquette e ɖò batri ɖokpo jí", dyu: "Fɔtɔ *ka gɛlɛn* ci batɛri kelen kan" },
   bat_terminals: { fr: "Photo des *bornes et câbles* des batteries (corrosion ?)", en: "Photo of battery *terminals and cables* (corrosion?)", sw: "Picha ya *vituo na nyaya* za betri (kutu?)", wo: "Litrat ci *bornes ak câbles yi* ci pil yi (redd ?)", bm: "Fɔtɔ ci batɛri *bornes ni câbles* (kɔrɔsion ?)", ha: "Hoto na *tasoshin da wayoyin* na baturin (tsatsa?)", yo: "Fọ́tò ti *àwọn ìdúróṣinṣin àti okùn* batiri (àjàkálẹ̀?)", fon: "Foto sín *bornes kpo câbles lɛ kpo* sín batri lɛ (gbɔví?)", dyu: "Fɔtɔ ci batɛri *bornes ni câbles* (kɔrɔsion ?)" },
-  panels_far:    { fr: "Maintenant les *panneaux* ☀️\nPhoto *DE LOIN* pour voir tous les panneaux sur le toit", en: "Now the *solar panels* ☀️\nPhoto *FROM FAR* to see all panels on the roof", sw: "Sasa *paneli za jua* ☀️\nPicha *KWA MBALI* kuona paneli zote paa", wo: "Kanam *panneau yi* ☀️\nLitrat gu *yomb* ngir xam panneau bée ci xëtt bi", bm: "Sisan *panneau* ☀️\nFɔtɔ ci *jan* ka panneau bɛɛ ye can kan", ha: "Yanzu *faifan rana* ☀️\nHoto *daga nesa* don ganin faifan a kan rufin", yo: "Báyìí *pánẹ́ẹ̀lì oòrùn* ☀️\nFọ́tò *láti jíjìn* láti rí gbogbo pánẹ́ẹ̀lì", fon: "Égbé ɔ, *panneau lɛ* ☀️\nFoto *dó tó* bo na mɔ panneau lɛ bǐ ɖò susu jí", dyu: "Sisan *panneau* ☀️\nFɔtɔ ci *jan* ka panneau bɛɛ ye" },
+  panels_far:    { fr: "Maintenant les *panneaux* ☀️\nPhoto *DE LOIN* pour voir tous les panneaux", en: "Now the *solar panels* ☀️\nPhoto *FROM FAR* to see all the panels", sw: "Sasa *paneli za jua* ☀️\nPicha *KWA MBALI* kuona paneli zote paa", wo: "Kanam *panneau yi* ☀️\nLitrat gu *yomb* ngir xam panneau bée ci xëtt bi", bm: "Sisan *panneau* ☀️\nFɔtɔ ci *jan* ka panneau bɛɛ ye can kan", ha: "Yanzu *faifan rana* ☀️\nHoto *daga nesa* don ganin faifan a kan rufin", yo: "Báyìí *pánẹ́ẹ̀lì oòrùn* ☀️\nFọ́tò *láti jíjìn* láti rí gbogbo pánẹ́ẹ̀lì", fon: "Égbé ɔ, *panneau lɛ* ☀️\nFoto *dó tó* bo na mɔ panneau lɛ bǐ ɖò susu jí", dyu: "Sisan *panneau* ☀️\nFɔtɔ ci *jan* ka panneau bɛɛ ye" },
   panels_close:  { fr: "Anomalie visible (fissure, saleté, ombre) ? → Photo *PROCHE*\nSinon tapez *OK*", en: "Any visible anomaly (crack, dirt, shadow)? → *CLOSE* photo\nOtherwise type *OK*", sw: "Kuna hitilafu inayoonekana? → Picha *YA KARIBU*\nVinginevyo andika *OK*", wo: "Dara xam ci kanam (fenḍ, mbedd) ? → Litrat gu *gudd*\nYëg sax bind *OK*", bm: "Fɛn tɔ ye (fenɛ, kulun) ? → Fɔtɔ *ka gɛlɛn*\nKɔ tɔ sɛbɛn *OK*", ha: "Akwai wani abu maras al'ada? → Hoto *KUSA*\nIn ba haka ba buga *OK*", yo: "Ohunkóhun tí kò ní dára? → Fọ́tò *tímọ́*\nBí bẹ́ẹ̀ kọ́ tẹ *OK*", fon: "Nǔ ɖé e ma sɔgbe ǎ? → Foto *tɛnmɛ*\nBɔ mɔ ǎ kɔ tɛɛn *OK*", dyu: "Fɛn tɔ ye (fenɛ, kulun) ? → Fɔtɔ *ka gɛlɛn*\nKɔ tɔ sɛbɛn *OK*" },
   tableau:       { fr: "Dernières photos 💪 Le *tableau électrique* (fusibles/disjoncteurs)\nUne photo *DE LOIN* puis une *PROCHE* des fusibles", en: "Last photos 💪 The *electrical panel* (fuses/breakers)\nOne photo *FROM FAR* then *CLOSE* of the fuses", sw: "Picha za mwisho 💪 *Paneli ya umeme*\nPicha *KWA MBALI* kisha *YA KARIBU* ya fyusi", wo: "Litrati yi dëkk bi 💪 *Tableau bi*\nLitrat gu *yomb* gannaaw gu *gudd* ci fusible yi", bm: "Fɔtɔ kɔrɔw 💪 *Tableau*\nFɔtɔ ci *jan* ani ci *gɛlɛn* ka fusible ye", ha: "Hotuna na ƙarshe 💪 *Allon wutar lantarki*\nHoto *daga nesa* sannan *kusa* na fyus", yo: "Ẹgbẹ́ ìkẹyìn 💪 *Pánẹ́ẹ̀lì*\nFọ́tò *láti jíjìn* lẹ́hìn *tímọ́* ti fusi", fon: "Foto gudogudo lɛ 💪 *Tableau électrique*\nFoto *dó tó* bo bɛ *tɛnmɛ* sín fusible lɛ", dyu: "Fɔtɔ kɔrɔw 💪 *Tableau*\nFɔtɔ ci *jan* ani ci *gɛlɛn*" },
   contact:       { fr: "Excellent ! Dernière question 🙏\nVotre *nom* et votre *numéro de téléphone* pour vous recontacter ?", en: "Excellent! Last question 🙏\nYour *name* and *phone number* so we can contact you back?", sw: "Vizuri sana! Swali la mwisho 🙏\nJina lako na nambari ya simu?", wo: "Baax na lool ! Laaj bi bëgg bi 🙏\n*Turu* ak *nimeero téléphone* ?", bm: "Aw ni baara ! Ɲininkali kɔrɔ 🙏\nI *tɔgɔ* ni i *téléphone nimɔrɔ* ?", ha: "Kyau sosai! Tambaya ta ƙarshe 🙏\n*Sunanka* da *lambar wayarka* ?", yo: "Ó tayọ! Ìbéèrè ìkẹyìn 🙏\n*Orúkọ* àti *nọ́mbà fóònù* rẹ?", fon: "Nɔ wà tawun! Nùkanbyɔ gudogudo ɔ 🙏\n*Nyikɔ* kpo *nɔmblu téléphone* tɔn kpo?", dyu: "Aw ni baara ! Ɲininkali kɔrɔ 🙏\nI *tɔgɔ* ni i *téléphone nimɔrɔ* ?" },
@@ -605,8 +605,8 @@ app.post('/webhook', async (req, res) => {
           // User is responding to GPS location confirmation
           if (isYes) {
             state.geo_confirmed = true;
-            await send(phone, t('people', lang));
-            next = 4; // skip country+village manual steps
+            await send(phone, t('site_type', lang));
+            next = 5; // skip country+village+people → go to site_type
           } else {
             // Not correct — ask them to type the village name
             const correct村 = {
@@ -629,8 +629,8 @@ app.post('/webhook', async (req, res) => {
           state.village = body;
           state.geo_confirmed = true;
           delete state.awaiting_village_correction;
-          await send(phone, t('people', lang));
-          next = 4;
+          await send(phone, t('site_type', lang));
+          next = 5;
         } else {
           // Manual flow — user chose country number
           const c = COUNTRY_MAP[body.trim()] || COUNTRY_MAP['12'];
@@ -644,21 +644,19 @@ app.post('/webhook', async (req, res) => {
 
       // ── STEP 3: Manual village input ─────────────────────────────────────────
       case 3:
-        await confirmOrSave('village', body, t('people', lang), 4);
+        await confirmOrSave('village', body, t('site_type', lang), 5);
         break;
 
-      // ── STEP 4: People count ─────────────────────────────────────────────────
-      case 4:
-        await confirmOrSave('people_count', body, t('site_type', lang), 5);
+      // ── STEP 4: Site type ────────────────────────────────────────────────────
+      case 4:  state.site_type = body; await send(phone, t('families', lang)); break;
+
+      // ── STEP 5: Number of families ───────────────────────────────────────────
+      case 5:
+        await confirmOrSave('people_count', body, t('duration', lang), 6);
         break;
 
-      // ── STEP 5: Site type ────────────────────────────────────────────────────
-      case 5:  state.site_type = body; await send(phone, t('duration', lang)); break;
-
-      // ── STEP 6: Outage duration ──────────────────────────────────────────────
-      case 6:
-        await confirmOrSave('offline_duration', body, t('symptom', lang), 7);
-        break;
+      // ── STEP 6: Outage duration (multiple choice) ─────────────────────────────
+      case 6:  state.offline_duration = body; await send(phone, t('symptom', lang)); break;
 
       // ── STEP 7: Symptom ──────────────────────────────────────────────────────
       case 7:  state.symptom = body; await send(phone, t('event', lang)); break;
@@ -695,21 +693,21 @@ app.post('/webhook', async (req, res) => {
       case 14:
         if (!mediaUrl && !isSkip) { await send(phone, ph('des bornes et câbles des batteries')); return; }
         await uploadIfMedia('battery_terminals', 'battery terminals corrosion cables');
-        await send(phone, t('panels_far', lang)); break;
-
-      case 15:
-        if (!mediaUrl && !isSkip) { await send(phone, ph('des panneaux sur le toit (de loin)')); return; }
-        await uploadIfMedia('panels_far', 'solar panels far shot roof count');
-        await send(phone, t('panels_close', lang)); break;
-
-      case 16:
-        if (!mediaUrl && !isSkip) { await send(phone, ph('des panneaux (de proche si abîmés)')); return; }
-        await uploadIfMedia('panel_close', 'solar panel close-up cracks dirt');
         await send(phone, t('tableau', lang)); break;
 
-      case 17:
+      case 15:
         if (!mediaUrl && !isSkip) { await send(phone, ph('du tableau électrique ou des fusibles')); return; }
         await uploadIfMedia('tableau', 'electrical panel fuses breakers');
+        await send(phone, t('panels_far', lang)); break;
+
+      case 16:
+        if (!mediaUrl && !isSkip) { await send(phone, ph('pour voir tous les panneaux')); return; }
+        await uploadIfMedia('panels_far', 'solar panels far shot count');
+        await send(phone, t('panels_close', lang)); break;
+
+      case 17:
+        if (!mediaUrl && !isSkip) { await send(phone, ph('des panneaux (si anomalie visible)')); return; }
+        await uploadIfMedia('panel_close', 'solar panel close-up cracks dirt');
         await send(phone, t('contact', lang)); break;
 
       case 18:
