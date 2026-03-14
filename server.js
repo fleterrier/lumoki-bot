@@ -23,8 +23,8 @@ const twilioCli = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH
 // ── TRANSLATIONS ─────────────────────────────────────────────────────────────
 const T = {
   welcome: {
-    fr:  "Bonjour ! 🌞 Je suis l'assistant Lumoki.\nJe vais vous aider à signaler une installation solaire en panne. Cela prend environ 10 minutes.\n\nDans quel *pays* et *village* se trouve l'installation ?",
-    en:  "Hello! 🌞 I'm the Lumoki assistant.\nI'll help you report a broken solar installation. This takes about 10 minutes.\n\nIn which *country* and *village* is the installation?",
+    fr:  "Bonjour ! 🌞 Je suis l'assistant Lumoki.\nJe vais vous aider à signaler une installation solaire en panne. Cela prend environ 10 minutes.\n\nCommençons ! Dans quel *pays* se trouve l'installation ?",
+    en:  "Hello! 🌞 I'm the Lumoki assistant.\nI'll help you report a broken solar installation. This takes about 10 minutes.\n\nLet's start! In which *country* is the installation?",
     wo:  "Salaam ! 🌞 Man mooy assistant Lumoki.\nDanga ma jënd ak installation solaire bu dëkk. Amna yënn fukki minit.\n\nFan la installation bi nekk ? *Réew* ak *dëkk* ?",
     bm:  "I ni ce ! 🌞 Ne ye Lumoki ka dɛmɛbaga ye.\nN bena i dɛmɛ solar installation minɛnin ka sɛbɛn.\n\nJamana ni dugu jumɛn na installation in be ?",
     sw:  "Habari! 🌞 Mimi ni msaidizi wa Lumoki.\nNitakusaidia kuripoti mfumo wa nishati ya jua uliovunjika. Inachukua dakika 10.\n\nMfumo uko nchi gani na kijiji gani?",
@@ -32,6 +32,28 @@ const T = {
     yo:  "Ẹ káàbọ̀! 🌞 Mo jẹ olùrànlọ́wọ́ Lumoki.\nEmi yoo ràn ọ lọ́wọ́ lati ròyìn ètò agbára oòrùn tí ó fọ́.\n\nNí orílẹ̀-èdè wo àti abúlé wo ni ètò náà wà?",
     fon: "Alo! 🌞 Nyɛ wɛ nye Lumoki tɔn azɔwanú.\nUn na d'acɛ we bo na gbɛ̌ nǔ e kúnkan solar gbɔjɛ tɔn.\n\nGan tɛ mɛ kpo toxo tɛ mɛ kpo wɛ solar ɔ ɖè?",
     dyu: "I ni ce! 🌞 Ne ye Lumoki ka dɛmɛbaga ye.\nN bena i dɛmɛ solar installation minɛnin sɛbɛn.\n\nDugukolo ni dugu jumɛn na installation in be?"
+  },
+  country: {
+    fr: "Dans quel pays ?\n\n1️⃣ Bénin\n2️⃣ Sénégal\n3️⃣ Mali\n4️⃣ Burkina Faso\n5️⃣ Guinée\n6️⃣ Côte d'Ivoire\n7️⃣ Nigeria\n8️⃣ Ghana\n9️⃣ Tanzanie\n🔟 Ouganda\n1️⃣1️⃣ Zambie\n1️⃣2️⃣ Autre",
+    en: "Which country?\n\n1️⃣ Benin\n2️⃣ Senegal\n3️⃣ Mali\n4️⃣ Burkina Faso\n5️⃣ Guinea\n6️⃣ Ivory Coast\n7️⃣ Nigeria\n8️⃣ Ghana\n9️⃣ Tanzania\n🔟 Uganda\n1️⃣1️⃣ Zambia\n1️⃣2️⃣ Other",
+    sw: "Nchi gani?\n\n1️⃣ Benin\n2️⃣ Senegal\n3️⃣ Mali\n4️⃣ Burkina Faso\n5️⃣ Guinea\n6️⃣ Ivory Coast\n7️⃣ Nigeria\n8️⃣ Ghana\n9️⃣ Tanzania\n🔟 Uganda\n1️⃣1️⃣ Zambia\n1️⃣2️⃣ Nyingine",
+    wo: "Fan ci réew yi ?\n\n1️⃣ Bénin\n2️⃣ Sénégal\n3️⃣ Mali\n4️⃣ Burkina Faso\n5️⃣ Guinée\n6️⃣ Côte d'Ivoire\n7️⃣ Nigeria\n8️⃣ Ghana\n9️⃣ Tanzanie\n🔟 Ouganda\n1️⃣1️⃣ Zambie\n1️⃣2️⃣ Yeneen",
+    bm: "Jamana jumɛn ?\n\n1️⃣ Bénin\n2️⃣ Sénégal\n3️⃣ Mali\n4️⃣ Burkina Faso\n5️⃣ Guinée\n6️⃣ Côte d'Ivoire\n7️⃣ Nigeria\n8️⃣ Ghana\n9️⃣ Tanzanie\n🔟 Ouganda\n1️⃣1️⃣ Zambie\n1️⃣2️⃣ Wɛrɛ",
+    fon: "Gan tɛ ?\n\n1️⃣ Bénin\n2️⃣ Sénégal\n3️⃣ Mali\n4️⃣ Burkina Faso\n5️⃣ Guinée\n6️⃣ Côte d'Ivoire\n7️⃣ Nigeria\n8️⃣ Ghana\n9️⃣ Tanzanie\n🔟 Ouganda\n1️⃣1️⃣ Zambie\n1️⃣2️⃣ Vɔ ɖevo",
+    ha: "Wace ƙasa?\n\n1️⃣ Benin\n2️⃣ Senegal\n3️⃣ Mali\n4️⃣ Burkina Faso\n5️⃣ Guinea\n6️⃣ Ivory Coast\n7️⃣ Nigeria\n8️⃣ Ghana\n9️⃣ Tanzania\n🔟 Uganda\n1️⃣1️⃣ Zambia\n1️⃣2️⃣ Wani",
+    yo: "Orílẹ̀-èdè wo?\n\n1️⃣ Benin\n2️⃣ Senegal\n3️⃣ Mali\n4️⃣ Burkina Faso\n5️⃣ Guinea\n6️⃣ Ivory Coast\n7️⃣ Nigeria\n8️⃣ Ghana\n9️⃣ Tanzania\n🔟 Uganda\n1️⃣1️⃣ Zambia\n1️⃣2️⃣ Mìíràn",
+    dyu: "Dugukolo jumɛn ?\n\n1️⃣ Bénin\n2️⃣ Sénégal\n3️⃣ Mali\n4️⃣ Burkina Faso\n5️⃣ Guinée\n6️⃣ Côte d'Ivoire\n7️⃣ Nigeria\n8️⃣ Ghana\n9️⃣ Tanzanie\n🔟 Ouganda\n1️⃣1️⃣ Zambie\n1️⃣2️⃣ Wɛrɛ"
+  },
+  village: {
+    fr: "Dans quel *village ou ville* exactement ?",
+    en: "In which *village or town* exactly?",
+    sw: "Katika *kijiji au mji* gani hasa?",
+    wo: "Fan ci *dëkk* bi ?",
+    bm: "*Dugu* jumɛn na ?",
+    fon: "*Toxo* tɛ mɛ ?",
+    ha: "Wane *gari ko birni* ne hasa?",
+    yo: "Ní *abúlé tàbí ìlú* wo gangan?",
+    dyu: "*Dugu* jumɛn na ?"
   },
   people: {
     fr: "Merci ! Combien de *familles ou personnes* utilisent cette installation ?",
@@ -140,6 +162,23 @@ function t(key, lang) {
 }
 
 // ── LANGUAGE DETECTION ───────────────────────────────────────────────────────
+
+// Country code + name mapping
+const COUNTRY_MAP = {
+  '1':  { code: 'BEN', name: 'Bénin' },
+  '2':  { code: 'SEN', name: 'Sénégal' },
+  '3':  { code: 'MLI', name: 'Mali' },
+  '4':  { code: 'BFA', name: 'Burkina Faso' },
+  '5':  { code: 'GIN', name: 'Guinée' },
+  '6':  { code: 'CIV', name: "Côte d'Ivoire" },
+  '7':  { code: 'NGA', name: 'Nigeria' },
+  '8':  { code: 'GHA', name: 'Ghana' },
+  '9':  { code: 'TZA', name: 'Tanzanie' },
+  '10': { code: 'UGA', name: 'Ouganda' },
+  '11': { code: 'ZMB', name: 'Zambie' },
+  '12': { code: 'AFR', name: 'Autre' }
+};
+
 async function detectLanguage(text) {
   try {
     const res = await ai.messages.create({
@@ -316,7 +355,7 @@ COMMON BATTERY FAILURE SIGNATURES (60% of cases in SSA):
 - Voltage OK but no power → dead cell(s), test each battery individually
 
 SITE REPORT:
-- Location: ${state.location}
+- Location: ${state.village || state.location}, ${state.country_name || ''}
 - Site type: ${siteTypeText}
 - People served: ${state.people_count}
 - Offline since: ${state.offline_duration}
@@ -594,26 +633,12 @@ app.post('/webhook', async (req, res) => {
         const year = new Date().getFullYear();
 
         // Country code from location text
-        const countryCodeMap = {
-          'senegal': 'SEN', 'sénégal': 'SEN',
-          'mali': 'MLI',
-          'burkina': 'BFA',
-          'guinee': 'GIN', 'guinée': 'GIN',
-          'cote': 'CIV', 'ivory': 'CIV',
-          'nigeria': 'NGA',
-          'ghana': 'GHA',
-          'tanzanie': 'TZA', 'tanzania': 'TZA',
-          'ouganda': 'UGA', 'uganda': 'UGA',
-          'zambie': 'ZMB', 'zambia': 'ZMB',
-          'benin': 'BEN', 'bénin': 'BEN'
-        };
-        const locationLower = (state.location || '').toLowerCase();
-        const countryCode = Object.entries(countryCodeMap).find(([k]) => locationLower.includes(k))?.[1] || 'AFR';
+        const countryCode = state.country_code || 'AFR';
         const siteId = `${countryCode}-${year}-${String((count || 0) + 1).padStart(3, '0')}`;
-        const country = state.location.split(/,|\s+en\s+|\s+in\s+/i).pop()?.trim() || state.location;
+        const country = state.country_name || state.village || state.location || 'Unknown';
 
         await db.from('sites').insert({
-          id: siteId, name: `${state.location} — Solar Site`,
+          id: siteId, name: `${state.village || state.location || 'Unknown'} — Solar Site`,
           lat: state.lat || 0, lng: state.lng || 0, status: 'offline', category: 'community',
           kw: diag.panel_kw || 0, country, region: 'west',
           category: ({'1':'community','2':'school','3':'health','4':'water','5':'business'})[state.site_type] || 'community',
