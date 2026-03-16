@@ -440,15 +440,17 @@ ${photos}
 INSTRUCTIONS:
 1. FIRST examine all photos carefully for any visible error codes, damage, corrosion
 2. If you see an error code on screen, identify it using the reference above
-3. Count batteries in the far shot
-4. Read brand/model from label photos
-5. Note any corrosion, swelling, burn marks, loose cables
+3. Count batteries in the far shot — estimate total capacity in kWh from count × Ah × V
+4. Read brand/model from label photos — estimate inverter rated power in kWp from model number
+5. Count solar panels — estimate total kWp from count × typical panel wattage (250-400W each)
+6. Note any corrosion, swelling, burn marks, loose cables
+7. Always provide kWp and kWh estimates even if approximate — use "typical SSA off-grid sizing" if labels unreadable
 
 Generate diagnostic JSON (respond ONLY with valid JSON, no markdown):
 {
-  "inverter_brand":"","inverter_model":"","inverter_kw":null,"inverter_error_code":"",
+  "inverter_brand":"","inverter_model":"","inverter_kw_estimated":null,"inverter_error_code":"",
   "battery_brand":"","battery_count":null,"battery_ah":null,"battery_voltage":null,"battery_tech":"",
-  "panel_count":null,"panel_kw":null,
+  "panel_count":null,"panel_kw":null,"panel_wp_per_panel":null,
   "fault_primary":"","fault_secondary":"","fault_tertiary":"",
   "confidence":0,"urgency":1,
   "parts_needed":[{"name":"","qty":1,"est_cost_eur":0}],
@@ -465,21 +467,88 @@ Generate diagnostic JSON (respond ONLY with valid JSON, no markdown):
 // ── NOTIFICATION EMAIL ────────────────────────────────────────────────────────
 async function notifyTeam(siteId, diagnostic, state) {
   const urg = ['','🟢','🟡','🟠','🔴','🚨'][diagnostic.urgency] || '⚪';
+  const lieu = [state.village, state.country_name].filter(Boolean).join(', ') || state.location || 'Non renseigné';
+  const siteTypeLabel = {'1':'Maisons/familles','2':'École','3':'Dispensaire/santé','4':'Pompe à eau','5':'Autre'}[state.site_type] || '—';
+  const durationLabel = {'1':'< 1 jour','2':'< 1 semaine','3':'< 1 mois','4':'< 1 an','5':'> 1 an'}[state.offline_duration] || state.offline_duration || '—';
+  const symptomLabel = {'1':'Rien ne s\'allume','2':'Jour OK, nuit KO','3':'Coupures fréquentes','4':'Lumière faible','5':'Odeur/chaleur','6':'Erreur affichée'}[state.symptom] || state.symptom || '—';
+  const eventLabel = {'1':'Orage/foudre','2':'Inondation','3':'Installation modifiée','4':'Rien de particulier'}[state.recent_event] || state.recent_event || '—';
+
+  // Build parts list
+  const partsList = (diagnostic.parts_needed || []).map(p =>
+    `<li>${p.qty}× ${p.name} — ~€${p.est_cost_eur}</li>`
+  ).join('') || '<li>À déterminer</li>';
+
+  // Build ai_instructions as bullet list
+  const instrList = (diagnostic.ai_instructions || '')
+    .split(/\n|(?=\d+\.)/)
+    .map(s => s.trim())
+    .filter(s => s.length > 3)
+    .map(s => `<li>${s.replace(/^\d+\.\s*/,'')}</li>`)
+    .join('');
+
   await resend.emails.send({
     from: 'Lumoki Bot <bot@lumoki.africa>',
     to:   process.env.NOTIFY_EMAIL,
-    subject: `${urg} Nouveau site — ${state.location} (Urgence ${diagnostic.urgency}/5)`,
-    html: `<h2>🌞 Nouveau site Lumoki</h2>
-<b>ID:</b> ${siteId}<br><b>Lieu:</b> ${state.location}<br>
-<b>Reporter:</b> ${state.contact}<br><b>Personnes:</b> ${state.people_count}<br>
-<b>Hors service:</b> ${state.offline_duration}<br><b>Symptôme:</b> ${state.symptom}<br>
-<hr><h3>${urg} Diagnostic IA (${diagnostic.confidence}% confiance)</h3>
-<b>Panne:</b> ${diagnostic.fault_primary}<br>
-<b>Équipement:</b> ${diagnostic.inverter_brand} ${diagnostic.inverter_model} | ${diagnostic.battery_count}x batteries ${diagnostic.battery_brand}<br>
-<b>Budget estimé:</b> €${diagnostic.total_cost_est}<br>
-<hr><p>${diagnostic.ai_report}</p>
-<p><b>Instructions technicien:</b><br>${diagnostic.ai_instructions}</p>
-<a href="https://lumoki.africa/sites.html">Voir sur Lumoki →</a>`
+    subject: `${urg} [${siteId}] ${lieu} — Urgence ${diagnostic.urgency}/5`,
+    html: `
+<div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;">
+
+  <div style="background:#1C1009;padding:20px 24px;border-radius:8px 8px 0 0;">
+    <h1 style="color:#F59E0B;margin:0;font-size:22px;">🌞 Lumoki — Nouveau site signalé</h1>
+    <p style="color:#9A8070;margin:4px 0 0;font-size:13px;">${siteId} · ${new Date().toLocaleDateString('fr-BE')}</p>
+  </div>
+
+  <div style="background:#FFF9F0;padding:20px 24px;border:1px solid #E8DDD0;">
+
+    <h2 style="color:#1C1009;font-size:16px;margin:0 0 12px;">📍 Site</h2>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:20px;">
+      <tr><td style="padding:5px 8px;color:#9A8070;width:38%;">Lieu</td><td style="padding:5px 8px;font-weight:bold;">${lieu}</td></tr>
+      <tr style="background:#fff;"><td style="padding:5px 8px;color:#9A8070;">Type d'installation</td><td style="padding:5px 8px;">${siteTypeLabel}</td></tr>
+      <tr><td style="padding:5px 8px;color:#9A8070;">Familles bénéficiaires</td><td style="padding:5px 8px;">${state.people_count || '—'}</td></tr>
+      <tr style="background:#fff;"><td style="padding:5px 8px;color:#9A8070;">Hors service depuis</td><td style="padding:5px 8px;">${durationLabel}</td></tr>
+      <tr><td style="padding:5px 8px;color:#9A8070;">Symptôme principal</td><td style="padding:5px 8px;">${symptomLabel}</td></tr>
+      <tr style="background:#fff;"><td style="padding:5px 8px;color:#9A8070;">Événement récent</td><td style="padding:5px 8px;">${eventLabel}</td></tr>
+      <tr><td style="padding:5px 8px;color:#9A8070;">Reporter</td><td style="padding:5px 8px;">${state.contact || '—'}</td></tr>
+      <tr style="background:#fff;"><td style="padding:5px 8px;color:#9A8070;">GPS</td><td style="padding:5px 8px;">${state.lat ? `${state.lat.toFixed(4)}, ${state.lng.toFixed(4)}` : '—'}</td></tr>
+    </table>
+
+    <h2 style="color:#1C1009;font-size:16px;margin:0 0 12px;">${urg} Diagnostic IA <span style="font-weight:normal;color:#9A8070;font-size:13px;">(${diagnostic.confidence || 0}% confiance)</span></h2>
+
+    <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px;">
+      <tr><td style="padding:5px 8px;color:#9A8070;width:38%;">Onduleur</td><td style="padding:5px 8px;">${diagnostic.inverter_brand || '—'} ${diagnostic.inverter_model || ''} ${diagnostic.inverter_error_code ? '· Code erreur: <b>'+diagnostic.inverter_error_code+'</b>' : ''}</td></tr>
+      <tr style="background:#fff;"><td style="padding:5px 8px;color:#9A8070;">Puissance estimée</td><td style="padding:5px 8px;">${diagnostic.inverter_kw ? diagnostic.inverter_kw + ' kWp' : '—'}</td></tr>
+      <tr><td style="padding:5px 8px;color:#9A8070;">Batteries</td><td style="padding:5px 8px;">${diagnostic.battery_count || '—'}× ${diagnostic.battery_brand || ''} ${diagnostic.battery_ah ? diagnostic.battery_ah+'Ah' : ''} ${diagnostic.battery_voltage ? diagnostic.battery_voltage+'V' : ''}</td></tr>
+      <tr style="background:#fff;"><td style="padding:5px 8px;color:#9A8070;">Capacité batterie estimée</td><td style="padding:5px 8px;">${diagnostic.battery_count && diagnostic.battery_ah && diagnostic.battery_voltage ? ((diagnostic.battery_count * diagnostic.battery_ah * diagnostic.battery_voltage)/1000).toFixed(1) + ' kWh' : '—'}</td></tr>
+      <tr><td style="padding:5px 8px;color:#9A8070;">Panneaux</td><td style="padding:5px 8px;">${diagnostic.panel_count || '—'} panneaux · ${diagnostic.panel_kw ? diagnostic.panel_kw + ' kWp' : '—'}</td></tr>
+      <tr style="background:#fff;"><td style="padding:5px 8px;color:#9A8070;">Urgence</td><td style="padding:5px 8px;font-weight:bold;">${urg} ${diagnostic.urgency}/5</td></tr>
+      <tr><td style="padding:5px 8px;color:#9A8070;">Budget estimé</td><td style="padding:5px 8px;font-weight:bold;">€${diagnostic.total_cost_est || '?'}</td></tr>
+    </table>
+
+    <h3 style="color:#1C1009;font-size:14px;margin:0 0 8px;">Pannes probables</h3>
+    <ul style="margin:0 0 16px;padding-left:20px;font-size:13px;line-height:1.6;">
+      <li><b>${diagnostic.fault_primary || '—'}</b></li>
+      ${diagnostic.fault_secondary ? `<li>${diagnostic.fault_secondary}</li>` : ''}
+      ${diagnostic.fault_tertiary ? `<li>${diagnostic.fault_tertiary}</li>` : ''}
+    </ul>
+
+    <h3 style="color:#1C1009;font-size:14px;margin:0 0 8px;">Pièces nécessaires</h3>
+    <ul style="margin:0 0 16px;padding-left:20px;font-size:13px;line-height:1.6;">${partsList}</ul>
+
+    <h3 style="color:#1C1009;font-size:14px;margin:0 0 8px;">Rapport IA</h3>
+    <p style="font-size:13px;color:#444;line-height:1.6;margin:0 0 16px;">${diagnostic.ai_report || '—'}</p>
+
+    <h3 style="color:#1C1009;font-size:14px;margin:0 0 8px;">Instructions technicien</h3>
+    <ul style="margin:0 0 20px;padding-left:20px;font-size:13px;line-height:1.7;">${instrList || '<li>' + (diagnostic.ai_instructions || '—') + '</li>'}</ul>
+
+    <div style="text-align:center;margin-top:16px;">
+      <a href="https://lumoki.africa/sites.html" style="background:#F59E0B;color:#1C1009;padding:10px 24px;border-radius:100px;text-decoration:none;font-weight:bold;font-size:13px;">Voir sur le dashboard →</a>
+    </div>
+  </div>
+
+  <div style="background:#1C1009;padding:12px 24px;border-radius:0 0 8px 8px;text-align:center;color:#9A8070;font-size:11px;">
+    Lumoki · lumoki.africa · Solar Resurrection
+  </div>
+</div>`
   });
 }
 
