@@ -191,10 +191,39 @@ const COUNTRY_MAP = {
 };
 
 // ── REVERSE GEOCODING (GPS → commune, pays) ───────────────────────────────────
+// Deduce country from GPS bounding boxes (offline fallback)
+function guessCountryFromCoords(lat, lng) {
+  const boxes = [
+    { code:'BEN', name:'Bénin',          lat:[6.2,12.4],   lng:[0.8,3.9]   },
+    { code:'SEN', name:'Sénégal',         lat:[12.3,16.7],  lng:[-17.6,-11.4]},
+    { code:'MLI', name:'Mali',            lat:[10.1,25.0],  lng:[-4.3,4.3]  },
+    { code:'BFA', name:'Burkina Faso',    lat:[9.4,15.1],   lng:[-5.5,2.4]  },
+    { code:'GIN', name:'Guinée',          lat:[7.2,12.7],   lng:[-15.1,-7.6]},
+    { code:'CIV', name:"Côte d'Ivoire",   lat:[4.3,10.7],   lng:[-8.6,-2.5] },
+    { code:'NGA', name:'Nigeria',         lat:[4.3,13.9],   lng:[2.7,14.7]  },
+    { code:'GHA', name:'Ghana',           lat:[4.7,11.2],   lng:[-3.3,1.2]  },
+    { code:'TZA', name:'Tanzanie',        lat:[-11.7,4.7],  lng:[29.3,40.4] },
+    { code:'UGA', name:'Ouganda',         lat:[-1.5,4.2],   lng:[29.5,35.1] },
+    { code:'ZMB', name:'Zambie',          lat:[-18.1,-8.2], lng:[21.9,33.7] },
+  ];
+  for (const b of boxes) {
+    if (lat >= b.lat[0] && lat <= b.lat[1] && lng >= b.lng[0] && lng <= b.lng[1]) {
+      return { code3: b.code, name: b.name };
+    }
+  }
+  return null;
+}
+
 async function reverseGeocode(lat, lng) {
-  // Try Nominatim first, fallback to BigDataCloud (no key needed)
-  const attempts = [
-    async () => {
+  const iso2map = {
+    'BJ':'BEN','SN':'SEN','ML':'MLI','BF':'BFA','GN':'GIN',
+    'CI':'CIV','NG':'NGA','GH':'GHA','TZ':'TZA','UG':'UGA','ZM':'ZMB'
+  };
+
+  // Try Nominatim with 2 attempts (rate limit workaround)
+  for (let i = 0; i < 2; i++) {
+    try {
+      if (i > 0) await new Promise(r => setTimeout(r, 1500)); // wait 1.5s before retry
       const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=10&addressdetails=1&accept-language=fr`;
       const r = await fetch(url, {
         headers: {
@@ -209,36 +238,23 @@ async function reverseGeocode(lat, lng) {
       const commune = addr.municipality || addr.town || addr.city || addr.village || addr.county || addr.suburb || '';
       const country = addr.country || '';
       const countryCode = (addr.country_code || '').toUpperCase();
-      return { commune, country, countryCode };
-    },
-    async () => {
-      const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=fr`;
-      const r = await fetch(url);
-      const data = await r.json();
-      const commune = data.locality || data.city || data.principalSubdivision || '';
-      const country = data.countryName || '';
-      const countryCode = (data.countryCode || '').toUpperCase();
-      return { commune, country, countryCode };
-    }
-  ];
-
-  const iso2map = {
-    'BJ':'BEN','SN':'SEN','ML':'MLI','BF':'BFA','GN':'GIN',
-    'CI':'CIV','NG':'NGA','GH':'GHA','TZ':'TZA','UG':'UGA','ZM':'ZMB'
-  };
-
-  for (const attempt of attempts) {
-    try {
-      const result = await attempt();
-      if (result && result.commune) {
-        const code3 = iso2map[result.countryCode] || 'AFR';
-        console.log('Geocode OK:', result.commune, result.country, code3);
-        return { commune: result.commune, country: result.country, code3 };
+      if (commune) {
+        const code3 = iso2map[countryCode] || 'AFR';
+        console.log('Geocode OK (Nominatim):', commune, country, code3);
+        return { commune, country, code3 };
       }
     } catch(e) {
-      console.error('Geocode attempt failed:', e.message);
+      console.error(`Nominatim attempt ${i+1} failed:`, e.message);
     }
   }
+
+  // Offline fallback — deduce country from bounding boxes, no commune
+  const guess = guessCountryFromCoords(lat, lng);
+  if (guess) {
+    console.log('Geocode fallback (bounding box):', guess.name);
+    return { commune: `${lat.toFixed(3)}, ${lng.toFixed(3)}`, country: guess.name, code3: guess.code };
+  }
+
   console.error('All geocode attempts failed');
   return null;
 }
