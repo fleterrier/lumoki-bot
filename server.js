@@ -255,7 +255,9 @@ async function reverseGeocode(lat, lng) {
     return { commune: `${lat.toFixed(3)}, ${lng.toFixed(3)}`, country: guess.name, code3: guess.code };
   }
 
-  console.error('All geocode attempts failed');
+  // Last resort: return coords as commune with unknown country
+  // Caller will handle null by going to manual flow
+  console.error('All geocode attempts failed — GPS stored, going manual');
   return null;
 }
 
@@ -457,16 +459,20 @@ INSTRUCTIONS:
 1. FIRST examine all photos carefully for any visible error codes, damage, corrosion
 2. If you see an error code on screen, identify it using the reference above
 3. Count batteries in the far shot — estimate total capacity in kWh from count × Ah × V
-4. Read brand/model from label photos — estimate inverter rated power in kWp from model number
-5. Count solar panels — estimate total kWp from count × typical panel wattage (250-400W each)
-6. Note any corrosion, swelling, burn marks, loose cables
-7. Always provide kWp and kWh estimates even if approximate — use "typical SSA off-grid sizing" if labels unreadable
+4. Read brand/model from label photos — estimate inverter kVA from model number (field: kva_estimated)
+5. Count batteries, read Ah and voltage — compute kWh = count × Ah × V / 1000 (field: kwh_estimated)
+6. Count solar panels, estimate wattage per panel — compute kWp total = count × Wp / 1000 (field: kwp_estimated)
+7. Note any corrosion, swelling, burn marks, loose cables
+8. Always provide kva/kwh/kwp estimates even if approximate — use typical SSA off-grid sizing if labels unreadable
 
 Generate diagnostic JSON (respond ONLY with valid JSON, no markdown):
 {
-  "inverter_brand":"","inverter_model":"","inverter_kw_estimated":null,"inverter_error_code":"",
+  "inverter_brand":"","inverter_model":"","inverter_error_code":"",
+  "kva_estimated":null,
   "battery_brand":"","battery_count":null,"battery_ah":null,"battery_voltage":null,"battery_tech":"",
-  "panel_count":null,"panel_kw":null,"panel_wp_per_panel":null,
+  "kwh_estimated":null,
+  "panel_count":null,"panel_wp_per_panel":null,
+  "kwp_estimated":null,
   "fault_primary":"","fault_secondary":"","fault_tertiary":"",
   "confidence":0,"urgency":1,
   "parts_needed":[{"name":"","qty":1,"est_cost_eur":0}],
@@ -532,10 +538,10 @@ async function notifyTeam(siteId, diagnostic, state) {
 
     <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px;">
       <tr><td style="padding:5px 8px;color:#9A8070;width:38%;">Onduleur</td><td style="padding:5px 8px;">${diagnostic.inverter_brand || '—'} ${diagnostic.inverter_model || ''} ${diagnostic.inverter_error_code ? '· Code erreur: <b>'+diagnostic.inverter_error_code+'</b>' : ''}</td></tr>
-      <tr style="background:#fff;"><td style="padding:5px 8px;color:#9A8070;">Puissance estimée</td><td style="padding:5px 8px;">${diagnostic.inverter_kw ? diagnostic.inverter_kw + ' kWp' : '—'}</td></tr>
+      <tr style="background:#fff;"><td style="padding:5px 8px;color:#9A8070;">Puissance estimée</td><td style="padding:5px 8px;">${diagnostic.kva_estimated ? diagnostic.kva_estimated + ' kVA' : '—'}</td></tr>
       <tr><td style="padding:5px 8px;color:#9A8070;">Batteries</td><td style="padding:5px 8px;">${diagnostic.battery_count || '—'}× ${diagnostic.battery_brand || ''} ${diagnostic.battery_ah ? diagnostic.battery_ah+'Ah' : ''} ${diagnostic.battery_voltage ? diagnostic.battery_voltage+'V' : ''}</td></tr>
-      <tr style="background:#fff;"><td style="padding:5px 8px;color:#9A8070;">Capacité batterie estimée</td><td style="padding:5px 8px;">${diagnostic.battery_count && diagnostic.battery_ah && diagnostic.battery_voltage ? ((diagnostic.battery_count * diagnostic.battery_ah * diagnostic.battery_voltage)/1000).toFixed(1) + ' kWh' : '—'}</td></tr>
-      <tr><td style="padding:5px 8px;color:#9A8070;">Panneaux</td><td style="padding:5px 8px;">${diagnostic.panel_count || '—'} panneaux · ${diagnostic.panel_kw ? diagnostic.panel_kw + ' kWp' : '—'}</td></tr>
+      <tr style="background:#fff;"><td style="padding:5px 8px;color:#9A8070;">Capacité batterie estimée</td><td style="padding:5px 8px;">${diagnostic.kwh_estimated ? diagnostic.kwh_estimated + ' kWh' : (diagnostic.battery_count && diagnostic.battery_ah && diagnostic.battery_voltage ? ((diagnostic.battery_count * diagnostic.battery_ah * diagnostic.battery_voltage)/1000).toFixed(1) + ' kWh (calculé)' : '—')}</td></tr>
+      <tr><td style="padding:5px 8px;color:#9A8070;">Panneaux</td><td style="padding:5px 8px;">${diagnostic.panel_count || '—'} panneaux · ${diagnostic.kwp_estimated ? diagnostic.kwp_estimated + ' kWp' : '—'}</td></tr>
       <tr style="background:#fff;"><td style="padding:5px 8px;color:#9A8070;">Urgence</td><td style="padding:5px 8px;font-weight:bold;">${urg} ${diagnostic.urgency}/5</td></tr>
       <tr><td style="padding:5px 8px;color:#9A8070;">Budget estimé</td><td style="padding:5px 8px;font-weight:bold;">€${diagnostic.total_cost_est || '?'}</td></tr>
     </table>
@@ -733,8 +739,17 @@ app.post('/webhook', async (req, res) => {
             await send(phone, confirmFn(geo.commune, geo.country));
             next = 1; // stay on step 1 for confirmation
           } else {
-            // Geocoding failed — go manual
-            await send(phone, t('country', lang));
+            // Geocoding failed but GPS coords are stored — go to manual country
+            // (state.lat is set, case 2 will handle it specially)
+            const gpsNote = {
+              fr: `📍 Position GPS enregistrée (${state.lat.toFixed(3)}, ${state.lng.toFixed(3)})
+
+` + T.country.fr,
+              en: `📍 GPS location saved (${state.lat.toFixed(3)}, ${state.lng.toFixed(3)})
+
+` + T.country.en,
+            };
+            await send(phone, gpsNote[lang] || gpsNote.fr);
             next = 2;
           }
         } else {
@@ -747,11 +762,28 @@ app.post('/webhook', async (req, res) => {
 
       // ── STEP 2: Manual country ────────────────────────────────────────────────
       case 2: {
-        const c = COUNTRY_MAP[body.trim()] || COUNTRY_MAP['12'];
-        state.country_code = c.code;
-        state.country_name = c.name;
-        await send(phone, t('village', lang));
-        next = 3;
+        // Special case: GPS was received but geocoding failed
+        // state.lat exists but no country_name → skip country list, ask village + country together
+        if (state.lat && !state.country_name) {
+          // User is answering the country question after GPS geocoding failed
+          // body could be a country number or free text
+          const c = COUNTRY_MAP[body.trim()];
+          if (c) {
+            state.country_code = c.code;
+            state.country_name = c.name;
+          } else {
+            state.country_code = 'AFR';
+            state.country_name = body;
+          }
+          await send(phone, t('village', lang));
+          next = 3;
+        } else {
+          const c = COUNTRY_MAP[body.trim()] || COUNTRY_MAP['12'];
+          state.country_code = c.code;
+          state.country_name = c.name;
+          await send(phone, t('village', lang));
+          next = 3;
+        }
         break;
       }
 
@@ -859,7 +891,7 @@ app.post('/webhook', async (req, res) => {
           diag = {
             fault_primary: 'Diagnostic IA indisponible — analyse manuelle requise',
             fault_secondary: '', urgency: 3, confidence: 0,
-            panel_kw: 0, battery_count: 0, battery_brand: '', inverter_brand: '',
+            kwp_estimated: 0, kwh_estimated: 0, kva_estimated: 0, battery_count: 0, battery_brand: '', inverter_brand: '',
             inverter_model: '', inverter_error_code: '',
             parts_needed: [], total_cost_est: 0,
             ai_report: 'Analyse automatique échouée. Les photos et données brutes sont disponibles pour analyse manuelle.',
@@ -880,7 +912,10 @@ app.post('/webhook', async (req, res) => {
           name: `${state.village || state.location || 'Unknown'} — Solar Site`,
           lat: state.lat || 0, lng: state.lng || 0,
           status: 'offline', category,
-          kw: diag.panel_kw || 0, country, region: 'west',
+          kwp: diag.kwp_estimated || 0,
+          kwh: diag.kwh_estimated || 0,
+          kva: diag.kva_estimated || 0,
+          country, region: 'west',
           people: parseInt(state.people_count) || 0,
           photo_url: state.photos?.[0]?.url || null,
           fault: diag.fault_primary || 'À diagnostiquer',
@@ -890,7 +925,13 @@ app.post('/webhook', async (req, res) => {
         else console.log('✅ Site created:', siteId);
 
         await db.from('diagnostics').insert({
-          site_id: siteId, conversation_id: conv.id, ...diag, photos: state.photos
+          site_id: siteId,
+          conversation_id: conv.id,
+          kwh_estimated: diag.kwh_estimated || null,
+          kwp_estimated: diag.kwp_estimated || null,
+          kva_estimated: diag.kva_estimated || null,
+          ...diag,
+          photos: state.photos
         }).then(({error: e}) => e && console.error('⚠️ Diag insert error:', e.message));
 
         await db.from('conversations').update({ site_id: siteId }).eq('id', conv.id);
