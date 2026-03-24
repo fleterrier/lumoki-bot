@@ -531,14 +531,26 @@ Generate diagnostic JSON (respond ONLY with valid JSON, no markdown):
   "fault_primary":"","fault_secondary":"","fault_tertiary":"",
   "confidence":0,"urgency":1,
   "parts_needed":[{"name":"","qty":1,"est_cost_eur":0}],
-  "total_cost_est":0,"days_offline":0,
+  "labor_hours":0,"total_cost_est":0,"days_offline":0,
   "ai_report":"detailed narrative in ${langName} — mention exact error code if visible",
   "ai_instructions":"step-by-step technician actions in ${langName}, starting with error code resolution if applicable"
 }` }
     ]}]
   });
 
-  return JSON.parse(res.content[0].text.replace(/```json|```/g,'').trim());
+  const diag = JSON.parse(res.content[0].text.replace(/```json|```/g,'').trim());
+
+  // Attach cost breakdown metadata (server-computed, not from Claude)
+  diag._cost_meta = {
+    nearest_city:    nearestCity,
+    distance_km:     distanceKm,
+    travel_cost_eur: travelCost,
+    labor_h:         diag.labor_hours || 0,
+    labor_rate_eur:  5,
+    iot_kit_eur:     100
+  };
+
+  return diag;
 }
 
 // ── NOTIFICATION EMAIL ────────────────────────────────────────────────────────
@@ -617,6 +629,25 @@ async function notifyTeam(siteId, diagnostic, state) {
     <h3 style="color:#1C1009;font-size:14px;margin:0 0 8px;">Instructions technicien</h3>
     <ul style="margin:0 0 20px;padding-left:20px;font-size:13px;line-height:1.7;">${instrList || '<li>' + (diagnostic.ai_instructions || '—') + '</li>'}</ul>
 
+    <h3 style="color:#1C1009;font-size:14px;margin:20px 0 8px;">💰 Détail du budget estimé</h3>
+    ${(() => {
+      const m = diagnostic._cost_meta || {};
+      const parts = (diagnostic.parts_needed || []);
+      const partsCost = parts.reduce((s, p) => s + ((p.est_cost_eur || 0) * (p.qty || 1)), 0);
+      const laborH = m.labor_h || diagnostic.labor_hours || 0;
+      const laborCost = parseFloat((laborH * (m.labor_rate_eur || 5)).toFixed(2));
+      const travel = m.travel_cost_eur || 0;
+      const iot = m.iot_kit_eur || 100;
+      const total = parseFloat((partsCost + laborCost + travel + iot).toFixed(2));
+      const rows = [
+        ...parts.map(p => `<tr><td style="padding:4px 8px;color:#9A8070;">Pièce — ${p.name}</td><td style="padding:4px 8px;">${p.qty}× × €${p.est_cost_eur} = <b>€${((p.qty||1)*(p.est_cost_eur||0)).toFixed(2)}</b></td></tr>`),
+        `<tr style="background:#fff;"><td style="padding:4px 8px;color:#9A8070;">Main d'œuvre</td><td style="padding:4px 8px;">${laborH}h × €${m.labor_rate_eur||5}/h = <b>€${laborCost}</b></td></tr>`,
+        `<tr><td style="padding:4px 8px;color:#9A8070;">Déplacement</td><td style="padding:4px 8px;">${m.distance_km||'?'} km × 2 × €0.30/km (depuis ${m.nearest_city||'?'}) = <b>€${travel}</b></td></tr>`,
+        `<tr style="background:#fff;"><td style="padding:4px 8px;color:#9A8070;">Kit IoT Easy</td><td style="padding:4px 8px;">Systématique = <b>€${iot}</b></td></tr>`,
+        `<tr style="border-top:2px solid #F59E0B;"><td style="padding:6px 8px;font-weight:bold;">TOTAL ESTIMÉ</td><td style="padding:6px 8px;font-weight:bold;font-size:15px;color:#F59E0B;">€${total}</td></tr>`,
+      ].join('');
+      return `<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:20px;">${rows}</table>`;
+    })()}
     <div style="text-align:center;margin-top:16px;">
       <a href="https://lumoki.africa/sites.html" style="background:#F59E0B;color:#1C1009;padding:10px 24px;border-radius:100px;text-decoration:none;font-weight:bold;font-size:13px;">Voir sur le dashboard →</a>
     </div>
@@ -974,19 +1005,46 @@ app.post('/webhook', async (req, res) => {
           people: parseInt(state.people_count) || 0,
           photo_url: state.photos?.[0]?.url || null,
           fault: diag.fault_primary || 'À diagnostiquer',
-          sourced_at: new Date().toISOString().split('T')[0]
+          sourced_at: new Date().toISOString().split('T')[0],
+          budget: diag.total_cost_est || null
         });
         if (siteErr) console.error('⚠️ Site insert error:', siteErr.message);
         else console.log('✅ Site created:', siteId);
 
         await db.from('diagnostics').insert({
-          site_id: siteId,
-          conversation_id: conv.id,
-          kwh_estimated: diag.kwh_estimated || null,
-          kwp_estimated: diag.kwp_estimated || null,
-          kva_estimated: diag.kva_estimated || null,
-          ...diag,
-          photos: state.photos
+          site_id:              siteId,
+          reporter_phone:       state.contact || null,
+          lang:                 lang,
+          location_text:        [state.village, state.country_name].filter(Boolean).join(', ') || null,
+          symptom:              state.symptom || null,
+          recent_event:         state.recent_event || null,
+          outage_duration:      state.offline_duration || null,
+          photo_urls:           (state.photos || []).map(p => p.url),
+          inverter_brand:       diag.inverter_brand || null,
+          inverter_model:       diag.inverter_model || null,
+          inverter_error_code:  diag.inverter_error_code || null,
+          kva_estimated:        diag.kva_estimated || null,
+          battery_brand:        diag.battery_brand || null,
+          battery_count:        diag.battery_count || null,
+          battery_ah:           diag.battery_ah || null,
+          battery_voltage:      diag.battery_voltage || null,
+          battery_tech:         diag.battery_tech || null,
+          kwh_estimated:        diag.kwh_estimated || null,
+          panel_count:          diag.panel_count || null,
+          kwp_estimated:        diag.kwp_estimated || null,
+          fault_primary:        diag.fault_primary || null,
+          fault_secondary:      diag.fault_secondary || null,
+          fault_tertiary:       diag.fault_tertiary || null,
+          urgency:              diag.urgency || null,
+          confidence:           diag.confidence || null,
+          parts_needed:         diag.parts_needed || null,
+          labor_hours:          diag.labor_hours || null,
+          total_cost_est:       diag.total_cost_est || null,
+          nearest_city:         diag._cost_meta?.nearest_city || null,
+          distance_km:          diag._cost_meta?.distance_km || null,
+          ai_report:            diag.ai_report || null,
+          ai_instructions:      diag.ai_instructions || null,
+          raw_session:          state
         }).then(({error: e}) => e && console.error('⚠️ Diag insert error:', e.message));
 
         await db.from('conversations').update({ site_id: siteId }).eq('id', conv.id);
