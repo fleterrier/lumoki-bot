@@ -308,6 +308,33 @@ async function analyzePhoto(url, context) {
   } catch(e) { return { observations: 'Analysis failed', extracted_data: {}, anomalies: [], confidence: 0 }; }
 }
 
+// ── NEAREST CITY (>150k hab) ──────────────────────────────────────────────────
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+async function findNearestCity(lat, lng) {
+  if (!lat || !lng) return null;
+  try {
+    const { data: cities, error } = await db.from('cities').select('city_name, lat, lng');
+    if (error || !cities?.length) return null;
+    let nearest = null;
+    let minDist = Infinity;
+    for (const c of cities) {
+      const d = haversineKm(lat, lng, c.lat, c.lng);
+      if (d < minDist) { minDist = d; nearest = c; }
+    }
+    return nearest ? { name: nearest.city_name, distance_km: Math.round(minDist) } : null;
+  } catch(e) {
+    console.error('findNearestCity error:', e.message);
+    return null;
+  }
+}
+
 // ── GENERATE FINAL DIAGNOSTIC ─────────────────────────────────────────────────
 async function generateDiagnostic(state, lang) {
   // Build image blocks for Claude Vision — send actual photos
@@ -334,6 +361,32 @@ async function generateDiagnostic(state, lang) {
   const siteTypeText     = siteTypeMap[state.site_type]     || state.site_type     || 'Unknown';
   const symptomText      = symptomMap[state.symptom]        || state.symptom        || 'Unknown';
   const recentEventText  = eventMap[state.recent_event]     || state.recent_event   || 'Unknown';
+
+  // Cost context — nearest city + travel
+  const cityData = await findNearestCity(state.lat, state.lng);
+  const nearestCity   = cityData?.name        || 'nearest major city';
+  const distanceKm    = cityData?.distance_km ?? 100;
+  const travelCost    = parseFloat((distanceKm * 2 * 0.30).toFixed(2));
+  const costContextBlock = `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+COST ESTIMATION CONTEXT:
+Use these rates to compute total_cost_est in the JSON output.
+
+  Labour rate:       €5.00 per hour
+  Easy Kit IoT:      €100.00 — add to EVERY repair, no exception
+  Nearest city:      ${nearestCity}
+  Round-trip travel: ${distanceKm} km x 2 x €0.30/km = €${travelCost}
+
+Formula:
+  total_cost_est = sum(parts_needed[].est_cost_eur x qty) + (labor_hours x 5) + ${travelCost} + 100
+
+Estimate labor_hours from repair complexity:
+  Config fix only:        0.5h
+  Single component swap:  1-2h
+  Multi-component repair: 3-5h
+  Full bank replacement:  4-6h
+  Wiring overhaul:        6-8h
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
 
   const res = await ai.messages.create({
     model: 'claude-opus-4-5',
@@ -442,6 +495,8 @@ COMMON BATTERY FAILURE SIGNATURES (60% of cases in SSA):
 - Swollen battery → overcharge, gassing, replace immediately
 - White powder on terminals → sulfation/corrosion, clean + test voltage
 - Voltage OK but no power → dead cell(s), test each battery individually
+
+${costContextBlock}
 
 SITE REPORT:
 - Location: ${state.village || state.location}, ${state.country_name || ''}
