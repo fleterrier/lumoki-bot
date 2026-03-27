@@ -496,6 +496,71 @@ COMMON BATTERY FAILURE SIGNATURES (60% of cases in SSA):
 - White powder on terminals → sulfation/corrosion, clean + test voltage
 - Voltage OK but no power → dead cell(s), test each battery individually
 
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SSA FAULT BIBLE v1.0 — 50 most common off-grid faults
+For each fault detected, match to the nearest fault ID below.
+Return fault_primary, fault_secondary, fault_tertiary using these IDs when possible.
+
+### INV — Inverter faults
+INV-01 | BUS voltage high | urgency:4 | cause: PV over-voltage in morning surge, faulty MPPT capacitor | action: Check PV string Voc vs inverter max input; replace MOSFET bridge if capacitor blown
+INV-02 | BUS voltage low / no DC input | urgency:3 | cause: Battery fully discharged, broken DC fuse, corroded lug | action: Measure battery voltage, inspect DC fuse and cable lugs, check MPPT input
+INV-03 | AC output over-voltage | urgency:4 | cause: Faulty output transformer tap, overloaded neutral | action: Measure AC output with multimeter; adjust transformer tap or replace output filter
+INV-04 | AC output under-voltage | urgency:3 | cause: Battery SOC low, overloaded circuit, loose AC lug | action: Reduce load, check AC output lug tightness, verify battery bank health
+INV-05 | Overload / output short | urgency:5 | cause: Total load exceeds rated VA, shorted AC wire inside panel | action: Disconnect loads one by one to isolate fault; inspect AC wiring inside distribution panel
+INV-06 | Inverter overtemperature | urgency:4 | cause: Blocked ventilation, failed cooling fan, ambient >45C | action: Clean air vents, replace cooling fan, add ventilation to inverter cabinet
+INV-07 | Ground fault / isolation fault | urgency:5 | cause: Degraded PV cable insulation touching frame, water ingress in junction box | action: Disconnect strings one by one, measure isolation resistance with megger, inspect all junction boxes
+INV-08 | MPPT fault / PV input error | urgency:3 | cause: Faulty MPPT board, string reverse polarity, shaded string | action: Check PV string polarity and Voc; isolate strings; replace MPPT board if voltage present but no current
+INV-09 | Communication/display failure | urgency:2 | cause: Failed display PCB, broken UART cable, firmware crash | action: Power-cycle; check internal ribbon cable; reflash firmware via USB if accessible
+INV-10 | Charger not switching to grid/generator | urgency:2 | cause: ATS relay failed, AC input breaker tripped, wrong charger priority setting | action: Check ATS relay with multimeter, verify AC input breaker, review charger priority menu
+
+### BAT — Battery faults
+BAT-01 | Battery deep discharge / 0V cell | urgency:5 | cause: Extended outage without PV recharge, system left unattended months | action: Attempt slow-charge recovery at 0.1C for 4h; measure individual cell voltage; replace dead cells or bank
+BAT-02 | Battery sulfation | urgency:3 | cause: Chronic partial state of charge, electrolyte loss | action: Equalization charge at 2.35V/cell for 2h; distilled water top-up; desulfation pulse if charger supports
+BAT-03 | Battery over-voltage / gassing | urgency:4 | cause: Charge voltage too high (>14.7V for 12V), failed voltage regulator | action: Immediately reduce charge voltage; ventilate room; check inverter charge setpoint
+BAT-04 | Battery cell imbalance (LiFePO4) | urgency:4 | cause: Manufacturing variance amplified over cycles, failed balancer | action: Manual top-balance all cells at 3.65V; replace balancer; retire weak cell if capacity <80%
+BAT-05 | BMS communication lost | urgency:3 | cause: Broken CANbus cable, BMS firmware crash, wrong protocol setting | action: Check CANbus or RS485 cable continuity; verify protocol setting on inverter matches BMS; power-cycle BMS
+BAT-06 | Terminal corrosion / high resistance junction | urgency:3 | cause: Moisture, poor lug crimp, dissimilar metals | action: Disconnect, clean with baking soda + water, re-crimp lugs with proper tool, apply terminal grease
+BAT-07 | Battery capacity degradation >50% | urgency:3 | cause: Age + chronic partial discharge cycles | action: Full capacity test; replace bank if capacity <60% rated
+BAT-08 | Incorrect battery type setting | urgency:2 | cause: Operator set AGM profile on flooded battery or vice versa | action: Correct battery type in inverter menu; adjust Vfloat and Vabsorb accordingly
+
+### PV — PV array faults
+PV-01 | PV string open-circuit | urgency:3 | cause: UV degradation of MC4, rodent damage, poor crimp | action: Inspect full string cable run; replace damaged MC4 connectors; re-crimp if needed
+PV-02 | PV panel hotspot / shading | urgency:2 | cause: Partial shading, cell crack, failed bypass diode | action: Clean panels; trim shading vegetation; check bypass diode with multimeter; replace panel if >20% degradation
+PV-03 | String reverse polarity | urgency:4 | cause: Installation error, replaced panel with polarity reversed | action: Disconnect immediately; measure each panel polarity with multimeter; swap MC4 connectors
+PV-04 | PV junction box water ingress | urgency:3 | cause: Broken IP seal, cracked junction box lid | action: Open, dry, treat with corrosion inhibitor, reseal with silicone, replace if cracked
+PV-05 | Panel soiling / dust accumulation | urgency:1 | cause: Dry season dust accumulation, no cleaning protocol | action: Clean with soft brush and water; establish quarterly cleaning schedule
+PV-06 | PV string Voc exceeds inverter max input | urgency:5 | cause: Too many panels in series for inverter spec, cold morning spike | action: Disconnect PV immediately; remove one panel per string; verify Voc-cold < inverter max; replace MPPT board
+PV-07 | Broken panel glass / physical damage | urgency:2 | cause: Hail, falling branch, vandalism | action: If cell layer intact and no moisture: monitor. If delamination: replace panel
+
+### WIR — Wiring & distribution faults
+WIR-01 | Undersized DC cable / voltage drop | urgency:3 | cause: Installation used wrong cable gauge | action: Measure voltage at battery vs inverter terminals under load; replace cable with correct gauge (16-35mm2)
+WIR-02 | Corroded main DC busbar | urgency:4 | cause: Moisture + copper oxidation, poor initial installation | action: Sand and clean busbar; apply anti-oxidant paste; re-torque all connections to spec
+WIR-03 | Blown DC fuse | urgency:3 | cause: Overload event, short circuit, age | action: Find and fix cause of overcurrent first; replace fuse with correct rating
+WIR-04 | Neutral/earth fault in AC distribution | urgency:5 | cause: Incorrect installation, amateur modification | action: Full AC wiring audit with multimeter; correct N-PE bridge; replace distribution board if necessary
+WIR-05 | Loose AC output terminal | urgency:4 | cause: Vibration, thermal cycling, initial loose installation | action: Power off, tighten all AC terminals to spec torque (1.5-2 Nm for 16mm2)
+WIR-06 | Wrong breaker sizing (overloaded circuit) | urgency:3 | cause: Load grew after initial installation, wrong breaker selected | action: Audit all load currents; upsize breakers to match wire gauge, not just load
+WIR-07 | PV earthing / bonding missing | urgency:3 | cause: Installation skip, no enforcement | action: Install 6mm2 green/yellow earth wire from all frames to common ground bar and ground rod
+
+### ENV — Installation & environment faults
+ENV-01 | Inverter installed outdoors (UV / rain exposure) | urgency:4 | cause: No weatherproof cabinet, direct sun/rain exposure | action: Relocate to weatherproof cabinet or indoor space; check and dry PCB; apply conformal coating
+ENV-02 | Batteries in unventilated sealed room | urgency:5 | cause: Design oversight, room sealed after installation | action: IMMEDIATE: open room, ventilate. Install 2 vent openings (high + low) minimum 100cm2 each
+ENV-03 | Panels tilted at wrong angle (flat mounting) | urgency:2 | cause: Installer convenience, owner modification | action: Adjust mounting to latitude angle +/-5 degrees; clean panel surface
+ENV-04 | Inverter/battery room ambient >45C | urgency:3 | cause: Equipment placed in hot utility room | action: Add insulated ceiling to room; paint roof white; add exhaust fan
+ENV-05 | Panels partially shaded by building / tree | urgency:2 | cause: Tree growth since installation, building extension added | action: Trim vegetation; reconfigure panel layout to avoid fixed shading; add bypass diodes per string if needed
+ENV-06 | Rodent damage to cables | urgency:4 | cause: Cables run along walls without conduit or protection | action: Replace all chewed cables; install armored cable or conduit throughout; set rodent traps
+ENV-07 | Theft of copper cables or panels | urgency:5 | cause: Unprotected site, no surveillance | action: Replace stolen components; install tamper-proof panel clamps; add site lock; report to local authorities
+
+### SYS — System configuration & settings faults
+SYS-01 | Wrong output voltage (220V vs 230V region) | urgency:3 | cause: Factory default not adjusted for local grid standard | action: Set output voltage to 230V in inverter menu; verify with multimeter
+SYS-02 | Wrong output frequency (50Hz vs 60Hz) | urgency:3 | cause: Factory default (often 60Hz for export market), not configured | action: Set output frequency to 50Hz in inverter menu
+SYS-03 | Low battery cutoff set too low | urgency:3 | cause: Default settings not adjusted for battery type | action: Set LVC to 11.5V (12V system) or 23V (24V); adjust DOD to 50% for LA, 80% for LiFePO4
+SYS-04 | Charger current set too high for battery bank | urgency:4 | cause: Inverter default often 60A regardless of bank size | action: Set max charge current to 0.1-0.2C of battery Ah rating
+SYS-05 | Priority mode wrong (grid first vs solar first) | urgency:2 | cause: Default setting, operator never changed it | action: Switch to Solar first or SBU mode; verify grid fallback threshold is appropriate
+SYS-06 | No equalization schedule for flooded batteries | urgency:2 | cause: Equalization never activated in charger settings | action: Enable monthly equalization in inverter; set Veq to 2.4V/cell (28.8V for 24V system)
+SYS-07 | Generator start threshold misconfigured | urgency:2 | cause: Default config, critical site not treated differently | action: Adjust generator start SOC to site criticality: health=50%, school=30%, residential=20%
+SYS-08 | MPPT charging profile mismatch with PV array size | urgency:2 | cause: System expanded with extra panels without upgrading inverter | action: Add second MPPT charge controller; verify total string Isc < MPPT max current
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${costContextBlock}
 
 SITE REPORT:
