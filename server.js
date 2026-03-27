@@ -540,14 +540,25 @@ Generate diagnostic JSON (respond ONLY with valid JSON, no markdown):
 
   const diag = JSON.parse(res.content[0].text.replace(/```json|```/g,'').trim());
 
-  // Attach cost breakdown metadata (server-computed, not from Claude)
+  // Recalcul serveur — source de vérité unique pour total_cost_est
+  const laborH    = parseFloat(diag.labor_hours) || 0;
+  const partsCost = (diag.parts_needed || []).reduce((s, p) => s + ((p.est_cost_eur || 0) * (p.qty || 1)), 0);
+  const laborCost = parseFloat((laborH * 5).toFixed(2));
+  const iotCost   = 100;
+  const totalCost = parseFloat((partsCost + laborCost + travelCost + iotCost).toFixed(2));
+
+  // Écraser le total_cost_est de Claude par le calcul serveur
+  diag.total_cost_est = totalCost;
+
   diag._cost_meta = {
     nearest_city:    nearestCity,
     distance_km:     distanceKm,
     travel_cost_eur: travelCost,
-    labor_h:         diag.labor_hours || 0,
+    labor_h:         laborH,
+    labor_cost_eur:  laborCost,
+    parts_cost_eur:  parseFloat(partsCost.toFixed(2)),
     labor_rate_eur:  5,
-    iot_kit_eur:     100
+    iot_kit_eur:     iotCost
   };
 
   return diag;
@@ -633,18 +644,12 @@ async function notifyTeam(siteId, diagnostic, state) {
     ${(() => {
       const m = diagnostic._cost_meta || {};
       const parts = (diagnostic.parts_needed || []);
-      const partsCost = parts.reduce((s, p) => s + ((p.est_cost_eur || 0) * (p.qty || 1)), 0);
-      const laborH = m.labor_h || diagnostic.labor_hours || 0;
-      const laborCost = parseFloat((laborH * (m.labor_rate_eur || 5)).toFixed(2));
-      const travel = m.travel_cost_eur || 0;
-      const iot = m.iot_kit_eur || 100;
-      const total = parseFloat((partsCost + laborCost + travel + iot).toFixed(2));
       const rows = [
-        ...parts.map(p => `<tr><td style="padding:4px 8px;color:#9A8070;">Pièce — ${p.name}</td><td style="padding:4px 8px;">${p.qty}× × €${p.est_cost_eur} = <b>€${((p.qty||1)*(p.est_cost_eur||0)).toFixed(2)}</b></td></tr>`),
-        `<tr style="background:#fff;"><td style="padding:4px 8px;color:#9A8070;">Main d'œuvre</td><td style="padding:4px 8px;">${laborH}h × €${m.labor_rate_eur||5}/h = <b>€${laborCost}</b></td></tr>`,
-        `<tr><td style="padding:4px 8px;color:#9A8070;">Déplacement</td><td style="padding:4px 8px;">${m.distance_km||'?'} km × 2 × €0.30/km (depuis ${m.nearest_city||'?'}) = <b>€${travel}</b></td></tr>`,
-        `<tr style="background:#fff;"><td style="padding:4px 8px;color:#9A8070;">Kit IoT Easy</td><td style="padding:4px 8px;">Systématique = <b>€${iot}</b></td></tr>`,
-        `<tr style="border-top:2px solid #F59E0B;"><td style="padding:6px 8px;font-weight:bold;">TOTAL ESTIMÉ</td><td style="padding:6px 8px;font-weight:bold;font-size:15px;color:#F59E0B;">€${total}</td></tr>`,
+        ...parts.map(p => `<tr><td style="padding:4px 8px;color:#9A8070;">Pièce — ${p.name}</td><td style="padding:4px 8px;">${p.qty}× €${p.est_cost_eur} = <b>€${((p.qty||1)*(p.est_cost_eur||0)).toFixed(2)}</b></td></tr>`),
+        `<tr style="background:#f9f9f9;"><td style="padding:4px 8px;color:#9A8070;">Main d'œuvre</td><td style="padding:4px 8px;">${m.labor_h||0}h × €5/h = <b>€${m.labor_cost_eur||0}</b></td></tr>`,
+        `<tr><td style="padding:4px 8px;color:#9A8070;">Déplacement</td><td style="padding:4px 8px;">${m.distance_km||'?'} km × 2 × €0.30/km (depuis ${m.nearest_city||'?'}) = <b>€${m.travel_cost_eur||0}</b></td></tr>`,
+        `<tr style="background:#f9f9f9;"><td style="padding:4px 8px;color:#9A8070;">Kit IoT Easy</td><td style="padding:4px 8px;">Systématique = <b>€${m.iot_kit_eur||100}</b></td></tr>`,
+        `<tr style="border-top:2px solid #F59E0B;"><td style="padding:6px 8px;font-weight:bold;">TOTAL ESTIMÉ</td><td style="padding:6px 8px;font-weight:bold;font-size:15px;color:#F59E0B;">€${diagnostic.total_cost_est}</td></tr>`,
       ].join('');
       return `<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:20px;">${rows}</table>`;
     })()}
