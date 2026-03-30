@@ -1073,10 +1073,14 @@ app.post('/webhook', async (req, res) => {
           kva: diag.kva_estimated || 0,
           country, region: 'west',
           people: parseInt(state.people_count) || 0,
-          photo_url: state.photos?.[0]?.url || null,
+          photo_url:        state.photos?.[0]?.url || null,
+          photo_panels_url: state.photos?.find(p => p.type === 'panels_far')?.url || null,
           fault: diag.fault_primary || 'À diagnostiquer',
           sourced_at: new Date().toISOString().split('T')[0],
-          budget: diag.total_cost_est || null
+          budget: diag.total_cost_est || null,
+          workflow_status: 'received',
+          kwhconso_total:   0,
+          kwhconso_last24h: 0
         });
         if (siteErr) console.error('⚠️ Site insert error:', siteErr.message);
         else console.log('✅ Site created:', siteId);
