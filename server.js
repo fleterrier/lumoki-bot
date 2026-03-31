@@ -23,8 +23,8 @@ const twilioCli = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH
 // ── TRANSLATIONS ─────────────────────────────────────────────────────────────
 const T = {
   welcome: {
-    fr:  "Bonjour ! 🌞 Je suis l'assistant Lumoki.\nJe vais vous aider à signaler une installation solaire en panne. Cela prend environ 10 minutes.\n\nCommençons ! 📍 Partagez votre *position GPS* (bouton 📎 → Position)\nOu tapez *SKIP* pour saisir manuellement.",
-    en:  "Hello! 🌞 I'm the Lumoki assistant.\nI'll help you report a broken solar installation. This takes about 10 minutes.\n\nLet's start! 📍 Share your *GPS location* (button 📎 → Location)\nOr type *SKIP* to enter manually.",
+    fr:  "🌞 *Bienvenue sur Lumoki*\n_Ressusciter le solaire en Afrique subsaharienne_\n\nJe suis votre assistant de signalement. En 10 minutes, votre rapport permettra d'envoyer un technicien et de remettre ce site en service — *gratuitement* pour la communauté.\n\nCommençons ! 📍 Partagez votre *position GPS* (bouton 📎 → Lieu)\nOu tapez *SKIP* pour continuer sans GPS.",
+    en:  "🌞 *Welcome to Lumoki*\n_Resurrecting solar across Sub-Saharan Africa_\n\nI'm your reporting assistant. In 10 minutes, your report will help dispatch a technician and bring this site back to life — *free of charge* for the community.\n\nLet's start! 📍 Share your *GPS location* (button 📎 → Location)\nOr type *SKIP* to continue without GPS.",
     wo:  "Salaam ! 🌞 Man mooy assistant Lumoki.\nDanga ma jënd ak installation solaire bu dëkk. Amna yënn fukki minit.\n\nFan la installation bi nekk ? *Réew* ak *dëkk* ?",
     bm:  "I ni ce ! 🌞 Ne ye Lumoki ka dɛmɛbaga ye.\nN bena i dɛmɛ solar installation minɛnin ka sɛbɛn.\n\nJamana ni dugu jumɛn na installation in be ?",
     sw:  "Habari! 🌞 Mimi ni msaidizi wa Lumoki.\nNitakusaidia kuripoti mfumo wa nishati ya jua uliovunjika. Inachukua dakika 10.\n\nMfumo uko nchi gani na kijiji gani?",
@@ -164,6 +164,17 @@ const T = {
   panels_far:    { fr: "Maintenant les *panneaux* ☀️\nPhoto *DE LOIN* pour voir tous les panneaux", en: "Now the *solar panels* ☀️\nPhoto *FROM FAR* to see all the panels", sw: "Sasa *paneli za jua* ☀️\nPicha *KWA MBALI* kuona paneli zote paa", wo: "Kanam *panneau yi* ☀️\nLitrat gu *yomb* ngir xam panneau bée ci xëtt bi", bm: "Sisan *panneau* ☀️\nFɔtɔ ci *jan* ka panneau bɛɛ ye can kan", ha: "Yanzu *faifan rana* ☀️\nHoto *daga nesa* don ganin faifan a kan rufin", yo: "Báyìí *pánẹ́ẹ̀lì oòrùn* ☀️\nFọ́tò *láti jíjìn* láti rí gbogbo pánẹ́ẹ̀lì", fon: "Égbé ɔ, *panneau lɛ* ☀️\nFoto *dó tó* bo na mɔ panneau lɛ bǐ ɖò susu jí", dyu: "Sisan *panneau* ☀️\nFɔtɔ ci *jan* ka panneau bɛɛ ye" },
   panels_close:  { fr: "Anomalie visible (fissure, saleté, ombre) ? → Photo *PROCHE*\nSinon tapez *OK*", en: "Any visible anomaly (crack, dirt, shadow)? → *CLOSE* photo\nOtherwise type *OK*", sw: "Kuna hitilafu inayoonekana? → Picha *YA KARIBU*\nVinginevyo andika *OK*", wo: "Dara xam ci kanam (fenḍ, mbedd) ? → Litrat gu *gudd*\nYëg sax bind *OK*", bm: "Fɛn tɔ ye (fenɛ, kulun) ? → Fɔtɔ *ka gɛlɛn*\nKɔ tɔ sɛbɛn *OK*", ha: "Akwai wani abu maras al'ada? → Hoto *KUSA*\nIn ba haka ba buga *OK*", yo: "Ohunkóhun tí kò ní dára? → Fọ́tò *tímọ́*\nBí bẹ́ẹ̀ kọ́ tẹ *OK*", fon: "Nǔ ɖé e ma sɔgbe ǎ? → Foto *tɛnmɛ*\nBɔ mɔ ǎ kɔ tɛɛn *OK*", dyu: "Fɛn tɔ ye (fenɛ, kulun) ? → Fɔtɔ *ka gɛlɛn*\nKɔ tɔ sɛbɛn *OK*" },
   tableau:       { fr: "Dernières photos 💪 Le *tableau électrique* (fusibles/disjoncteurs)\nUne photo *DE LOIN* puis une *PROCHE* des fusibles", en: "Last photos 💪 The *electrical panel* (fuses/breakers)\nOne photo *FROM FAR* then *CLOSE* of the fuses", sw: "Picha za mwisho 💪 *Paneli ya umeme*\nPicha *KWA MBALI* kisha *YA KARIBU* ya fyusi", wo: "Litrati yi dëkk bi 💪 *Tableau bi*\nLitrat gu *yomb* gannaaw gu *gudd* ci fusible yi", bm: "Fɔtɔ kɔrɔw 💪 *Tableau*\nFɔtɔ ci *jan* ani ci *gɛlɛn* ka fusible ye", ha: "Hotuna na ƙarshe 💪 *Allon wutar lantarki*\nHoto *daga nesa* sannan *kusa* na fyus", yo: "Ẹgbẹ́ ìkẹyìn 💪 *Pánẹ́ẹ̀lì*\nFọ́tò *láti jíjìn* lẹ́hìn *tímọ́* ti fusi", fon: "Foto gudogudo lɛ 💪 *Tableau électrique*\nFoto *dó tó* bo bɛ *tɛnmɛ* sín fusible lɛ", dyu: "Fɔtɔ kɔrɔw 💪 *Tableau*\nFɔtɔ ci *jan* ani ci *gɛlɛn*" },
+  extra_photo:   {
+    fr: "📸 Voulez-vous ajouter une *photo supplémentaire* ? (anomalie, câblage, contexte...)\nNotre IA l'analysera aussi.\nEnvoyez la photo directement, ou tapez *SKIP* pour passer.",
+    en: "📸 Would you like to add an *extra photo*? (anomaly, wiring, context...)\nOur AI will analyse it too.\nSend the photo directly, or type *SKIP* to continue.",
+    sw: "📸 Unataka kuongeza *picha ya ziada*? Tuma picha au andika *SKIP*.",
+    wo: "📸 Bëgg nga yónneel *litrat u yeneen*? Yónneel wala def *SKIP*.",
+    bm: "📸 *Fɔtɔ wɛrɛ* ci dɔ? Fɔtɔ yɔn wala sɛbɛn *SKIP*.",
+    fon: "📸 *Foto ɖevo* sɛ́nd? Sɛ́nd foto wá alǒ wlan *SKIP*.",
+    ha: "📸 *Hoto ƙarin*? Aika hoto ko rubuta *SKIP*.",
+    yo: "📸 *Fọ́tò mìíràn*? Fi ránṣẹ́ tàbí tẹ *SKIP*.",
+    dyu: "📸 *Fɔtɔ wɛrɛ* ci dɔ? Fɔtɔ yɔn wala sɛbɛn *SKIP*."
+  },
   contact:       { fr: "Excellent ! Dernière question 🙏\nVotre *nom* et votre *numéro de téléphone* pour vous recontacter ?", en: "Excellent! Last question 🙏\nYour *name* and *phone number* so we can contact you back?", sw: "Vizuri sana! Swali la mwisho 🙏\nJina lako na nambari ya simu?", wo: "Baax na lool ! Laaj bi bëgg bi 🙏\n*Turu* ak *nimeero téléphone* ?", bm: "Aw ni baara ! Ɲininkali kɔrɔ 🙏\nI *tɔgɔ* ni i *téléphone nimɔrɔ* ?", ha: "Kyau sosai! Tambaya ta ƙarshe 🙏\n*Sunanka* da *lambar wayarka* ?", yo: "Ó tayọ! Ìbéèrè ìkẹyìn 🙏\n*Orúkọ* àti *nọ́mbà fóònù* rẹ?", fon: "Nɔ wà tawun! Nùkanbyɔ gudogudo ɔ 🙏\n*Nyikɔ* kpo *nɔmblu téléphone* tɔn kpo?", dyu: "Aw ni baara ! Ɲininkali kɔrɔ 🙏\nI *tɔgɔ* ni i *téléphone nimɔrɔ* ?" },
   analyzing:     { fr: "Merci beaucoup ! 🙏\nToutes vos infos sont transmises à notre équipe technique.\nL'analyse IA est en cours... ⏳\n\nVous recevrez une confirmation dans quelques minutes.", en: "Thank you very much! 🙏\nAll your info has been sent to our technical team.\nAI analysis in progress... ⏳\n\nYou'll receive a confirmation in a few minutes.", sw: "Asante sana! 🙏\nTaarifa zote zimetumwa kwa timu yetu.\nUchambuzi wa AI unaendelea... ⏳", wo: "Jërëjëf lool ! 🙏\nDangu yónnee yépp ci sunu équipe technique.\nIA bi dafay jëfëf... ⏳", bm: "I ni ce kosɛbɛ ! 🙏\nKunnafoni bɛɛ tun ci sunu équipe yɛrɛ.\nIA ka ɲɛfɔ... ⏳", ha: "Na gode sosai! 🙏\nDuk bayanan sun isa ƙungiyarmu.\nBinciken AI yana gudana... ⏳", yo: "Ẹ jẹ́ ká dúpẹ́ gan an! 🙏\nGbogbo àlàyé ti lọ sí ẹgbẹ́ wa.\nÌgbékalẹ̀ AI ń lọ... ⏳", fon: "Akpé tawun! 🙏\nXógbe bǐ sɛ ɖo mɛtɔn lɛ sín nu.\nAI ɔ ɖò azɔ wà... ⏳", dyu: "I ni ce kosɛbɛ ! 🙏\nKunnafoni bɛɛ tun ci sunu équipe yɛrɛ.\nIA ka ɲɛfɔ... ⏳" }
 };
@@ -366,7 +377,9 @@ async function generateDiagnostic(state, lang) {
   const cityData = await findNearestCity(state.lat, state.lng);
   const nearestCity   = cityData?.name        || 'nearest major city';
   const distanceKm    = cityData?.distance_km ?? 100;
-  const travelCost    = parseFloat((distanceKm * 2 * 0.30).toFixed(2));
+  // Distance vol d'oiseau × 2 (correction route SSA) × 2 A/R (diagnostic + réparation)
+  const roadDistanceKm = distanceKm * 2;           // vol d'oiseau → route
+  const travelCost    = parseFloat((roadDistanceKm * 2 * 0.30).toFixed(2)); // 2 A/R
   const costContextBlock = `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 COST ESTIMATION CONTEXT:
@@ -375,12 +388,14 @@ Use these rates to compute total_cost_est in the JSON output.
   Labour rate:       €5.00 per hour
   Easy Kit IoT:      €100.00 — add to EVERY repair, no exception
   Nearest city:      ${nearestCity}
-  Round-trip travel: ${distanceKm} km x 2 x €0.30/km = €${travelCost}
+  Distance (road estimate): ${distanceKm} km x 2 (road factor) = ${roadDistanceKm} km
+  Travel (2 trips):         ${roadDistanceKm} km x 2 x €0.30/km = €${travelCost}
+  Community time:           3h fixed (presentation, training, handover)
 
 Formula:
-  total_cost_est = sum(parts_needed[].est_cost_eur x qty) + (labor_hours x 5) + ${travelCost} + 100
+  total_cost_est = sum(parts_needed[].est_cost_eur x qty) + ((labor_hours + 3) x 5) + ${travelCost} + 100
 
-Estimate labor_hours from repair complexity:
+Estimate labor_hours for TECHNICAL work only (community 3h added automatically):
   Config fix only:        0.5h
   Single component swap:  1-2h
   Multi-component repair: 3-5h
@@ -496,71 +511,6 @@ COMMON BATTERY FAILURE SIGNATURES (60% of cases in SSA):
 - White powder on terminals → sulfation/corrosion, clean + test voltage
 - Voltage OK but no power → dead cell(s), test each battery individually
 
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-SSA FAULT BIBLE v1.0 — 50 most common off-grid faults
-For each fault detected, match to the nearest fault ID below.
-Return fault_primary, fault_secondary, fault_tertiary using these IDs when possible.
-
-### INV — Inverter faults
-INV-01 | BUS voltage high | urgency:4 | cause: PV over-voltage in morning surge, faulty MPPT capacitor | action: Check PV string Voc vs inverter max input; replace MOSFET bridge if capacitor blown
-INV-02 | BUS voltage low / no DC input | urgency:3 | cause: Battery fully discharged, broken DC fuse, corroded lug | action: Measure battery voltage, inspect DC fuse and cable lugs, check MPPT input
-INV-03 | AC output over-voltage | urgency:4 | cause: Faulty output transformer tap, overloaded neutral | action: Measure AC output with multimeter; adjust transformer tap or replace output filter
-INV-04 | AC output under-voltage | urgency:3 | cause: Battery SOC low, overloaded circuit, loose AC lug | action: Reduce load, check AC output lug tightness, verify battery bank health
-INV-05 | Overload / output short | urgency:5 | cause: Total load exceeds rated VA, shorted AC wire inside panel | action: Disconnect loads one by one to isolate fault; inspect AC wiring inside distribution panel
-INV-06 | Inverter overtemperature | urgency:4 | cause: Blocked ventilation, failed cooling fan, ambient >45C | action: Clean air vents, replace cooling fan, add ventilation to inverter cabinet
-INV-07 | Ground fault / isolation fault | urgency:5 | cause: Degraded PV cable insulation touching frame, water ingress in junction box | action: Disconnect strings one by one, measure isolation resistance with megger, inspect all junction boxes
-INV-08 | MPPT fault / PV input error | urgency:3 | cause: Faulty MPPT board, string reverse polarity, shaded string | action: Check PV string polarity and Voc; isolate strings; replace MPPT board if voltage present but no current
-INV-09 | Communication/display failure | urgency:2 | cause: Failed display PCB, broken UART cable, firmware crash | action: Power-cycle; check internal ribbon cable; reflash firmware via USB if accessible
-INV-10 | Charger not switching to grid/generator | urgency:2 | cause: ATS relay failed, AC input breaker tripped, wrong charger priority setting | action: Check ATS relay with multimeter, verify AC input breaker, review charger priority menu
-
-### BAT — Battery faults
-BAT-01 | Battery deep discharge / 0V cell | urgency:5 | cause: Extended outage without PV recharge, system left unattended months | action: Attempt slow-charge recovery at 0.1C for 4h; measure individual cell voltage; replace dead cells or bank
-BAT-02 | Battery sulfation | urgency:3 | cause: Chronic partial state of charge, electrolyte loss | action: Equalization charge at 2.35V/cell for 2h; distilled water top-up; desulfation pulse if charger supports
-BAT-03 | Battery over-voltage / gassing | urgency:4 | cause: Charge voltage too high (>14.7V for 12V), failed voltage regulator | action: Immediately reduce charge voltage; ventilate room; check inverter charge setpoint
-BAT-04 | Battery cell imbalance (LiFePO4) | urgency:4 | cause: Manufacturing variance amplified over cycles, failed balancer | action: Manual top-balance all cells at 3.65V; replace balancer; retire weak cell if capacity <80%
-BAT-05 | BMS communication lost | urgency:3 | cause: Broken CANbus cable, BMS firmware crash, wrong protocol setting | action: Check CANbus or RS485 cable continuity; verify protocol setting on inverter matches BMS; power-cycle BMS
-BAT-06 | Terminal corrosion / high resistance junction | urgency:3 | cause: Moisture, poor lug crimp, dissimilar metals | action: Disconnect, clean with baking soda + water, re-crimp lugs with proper tool, apply terminal grease
-BAT-07 | Battery capacity degradation >50% | urgency:3 | cause: Age + chronic partial discharge cycles | action: Full capacity test; replace bank if capacity <60% rated
-BAT-08 | Incorrect battery type setting | urgency:2 | cause: Operator set AGM profile on flooded battery or vice versa | action: Correct battery type in inverter menu; adjust Vfloat and Vabsorb accordingly
-
-### PV — PV array faults
-PV-01 | PV string open-circuit | urgency:3 | cause: UV degradation of MC4, rodent damage, poor crimp | action: Inspect full string cable run; replace damaged MC4 connectors; re-crimp if needed
-PV-02 | PV panel hotspot / shading | urgency:2 | cause: Partial shading, cell crack, failed bypass diode | action: Clean panels; trim shading vegetation; check bypass diode with multimeter; replace panel if >20% degradation
-PV-03 | String reverse polarity | urgency:4 | cause: Installation error, replaced panel with polarity reversed | action: Disconnect immediately; measure each panel polarity with multimeter; swap MC4 connectors
-PV-04 | PV junction box water ingress | urgency:3 | cause: Broken IP seal, cracked junction box lid | action: Open, dry, treat with corrosion inhibitor, reseal with silicone, replace if cracked
-PV-05 | Panel soiling / dust accumulation | urgency:1 | cause: Dry season dust accumulation, no cleaning protocol | action: Clean with soft brush and water; establish quarterly cleaning schedule
-PV-06 | PV string Voc exceeds inverter max input | urgency:5 | cause: Too many panels in series for inverter spec, cold morning spike | action: Disconnect PV immediately; remove one panel per string; verify Voc-cold < inverter max; replace MPPT board
-PV-07 | Broken panel glass / physical damage | urgency:2 | cause: Hail, falling branch, vandalism | action: If cell layer intact and no moisture: monitor. If delamination: replace panel
-
-### WIR — Wiring & distribution faults
-WIR-01 | Undersized DC cable / voltage drop | urgency:3 | cause: Installation used wrong cable gauge | action: Measure voltage at battery vs inverter terminals under load; replace cable with correct gauge (16-35mm2)
-WIR-02 | Corroded main DC busbar | urgency:4 | cause: Moisture + copper oxidation, poor initial installation | action: Sand and clean busbar; apply anti-oxidant paste; re-torque all connections to spec
-WIR-03 | Blown DC fuse | urgency:3 | cause: Overload event, short circuit, age | action: Find and fix cause of overcurrent first; replace fuse with correct rating
-WIR-04 | Neutral/earth fault in AC distribution | urgency:5 | cause: Incorrect installation, amateur modification | action: Full AC wiring audit with multimeter; correct N-PE bridge; replace distribution board if necessary
-WIR-05 | Loose AC output terminal | urgency:4 | cause: Vibration, thermal cycling, initial loose installation | action: Power off, tighten all AC terminals to spec torque (1.5-2 Nm for 16mm2)
-WIR-06 | Wrong breaker sizing (overloaded circuit) | urgency:3 | cause: Load grew after initial installation, wrong breaker selected | action: Audit all load currents; upsize breakers to match wire gauge, not just load
-WIR-07 | PV earthing / bonding missing | urgency:3 | cause: Installation skip, no enforcement | action: Install 6mm2 green/yellow earth wire from all frames to common ground bar and ground rod
-
-### ENV — Installation & environment faults
-ENV-01 | Inverter installed outdoors (UV / rain exposure) | urgency:4 | cause: No weatherproof cabinet, direct sun/rain exposure | action: Relocate to weatherproof cabinet or indoor space; check and dry PCB; apply conformal coating
-ENV-02 | Batteries in unventilated sealed room | urgency:5 | cause: Design oversight, room sealed after installation | action: IMMEDIATE: open room, ventilate. Install 2 vent openings (high + low) minimum 100cm2 each
-ENV-03 | Panels tilted at wrong angle (flat mounting) | urgency:2 | cause: Installer convenience, owner modification | action: Adjust mounting to latitude angle +/-5 degrees; clean panel surface
-ENV-04 | Inverter/battery room ambient >45C | urgency:3 | cause: Equipment placed in hot utility room | action: Add insulated ceiling to room; paint roof white; add exhaust fan
-ENV-05 | Panels partially shaded by building / tree | urgency:2 | cause: Tree growth since installation, building extension added | action: Trim vegetation; reconfigure panel layout to avoid fixed shading; add bypass diodes per string if needed
-ENV-06 | Rodent damage to cables | urgency:4 | cause: Cables run along walls without conduit or protection | action: Replace all chewed cables; install armored cable or conduit throughout; set rodent traps
-ENV-07 | Theft of copper cables or panels | urgency:5 | cause: Unprotected site, no surveillance | action: Replace stolen components; install tamper-proof panel clamps; add site lock; report to local authorities
-
-### SYS — System configuration & settings faults
-SYS-01 | Wrong output voltage (220V vs 230V region) | urgency:3 | cause: Factory default not adjusted for local grid standard | action: Set output voltage to 230V in inverter menu; verify with multimeter
-SYS-02 | Wrong output frequency (50Hz vs 60Hz) | urgency:3 | cause: Factory default (often 60Hz for export market), not configured | action: Set output frequency to 50Hz in inverter menu
-SYS-03 | Low battery cutoff set too low | urgency:3 | cause: Default settings not adjusted for battery type | action: Set LVC to 11.5V (12V system) or 23V (24V); adjust DOD to 50% for LA, 80% for LiFePO4
-SYS-04 | Charger current set too high for battery bank | urgency:4 | cause: Inverter default often 60A regardless of bank size | action: Set max charge current to 0.1-0.2C of battery Ah rating
-SYS-05 | Priority mode wrong (grid first vs solar first) | urgency:2 | cause: Default setting, operator never changed it | action: Switch to Solar first or SBU mode; verify grid fallback threshold is appropriate
-SYS-06 | No equalization schedule for flooded batteries | urgency:2 | cause: Equalization never activated in charger settings | action: Enable monthly equalization in inverter; set Veq to 2.4V/cell (28.8V for 24V system)
-SYS-07 | Generator start threshold misconfigured | urgency:2 | cause: Default config, critical site not treated differently | action: Adjust generator start SOC to site criticality: health=50%, school=30%, residential=20%
-SYS-08 | MPPT charging profile mismatch with PV array size | urgency:2 | cause: System expanded with extra panels without upgrading inverter | action: Add second MPPT charge controller; verify total string Isc < MPPT max current
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${costContextBlock}
 
 SITE REPORT:
@@ -606,24 +556,29 @@ Generate diagnostic JSON (respond ONLY with valid JSON, no markdown):
   const diag = JSON.parse(res.content[0].text.replace(/```json|```/g,'').trim());
 
   // Recalcul serveur — source de vérité unique pour total_cost_est
-  const laborH    = parseFloat(diag.labor_hours) || 0;
-  const partsCost = (diag.parts_needed || []).reduce((s, p) => s + ((p.est_cost_eur || 0) * (p.qty || 1)), 0);
-  const laborCost = parseFloat((laborH * 5).toFixed(2));
-  const iotCost   = 100;
-  const totalCost = parseFloat((partsCost + laborCost + travelCost + iotCost).toFixed(2));
+  const laborH       = parseFloat(diag.labor_hours) || 0;
+  const communityH   = 3;  // heures fixes : présentation Lumoki, formation référent, remise en service
+  const totalLaborH  = laborH + communityH;
+  const partsCost    = (diag.parts_needed || []).reduce((s, p) => s + ((p.est_cost_eur || 0) * (p.qty || 1)), 0);
+  const laborCost    = parseFloat((totalLaborH * 5).toFixed(2));
+  const iotCost      = 100;
+  const totalCost    = parseFloat((partsCost + laborCost + travelCost + iotCost).toFixed(2));
 
   // Écraser le total_cost_est de Claude par le calcul serveur
   diag.total_cost_est = totalCost;
 
   diag._cost_meta = {
-    nearest_city:    nearestCity,
-    distance_km:     distanceKm,
-    travel_cost_eur: travelCost,
-    labor_h:         laborH,
-    labor_cost_eur:  laborCost,
-    parts_cost_eur:  parseFloat(partsCost.toFixed(2)),
-    labor_rate_eur:  5,
-    iot_kit_eur:     iotCost
+    nearest_city:      nearestCity,
+    distance_km:       distanceKm,
+    road_distance_km:  roadDistanceKm,
+    travel_cost_eur:   travelCost,
+    labor_h_technical: laborH,
+    labor_h_community: communityH,
+    labor_h_total:     totalLaborH,
+    labor_cost_eur:    laborCost,
+    parts_cost_eur:    parseFloat(partsCost.toFixed(2)),
+    labor_rate_eur:    5,
+    iot_kit_eur:       iotCost
   };
 
   return diag;
@@ -711,8 +666,10 @@ async function notifyTeam(siteId, diagnostic, state) {
       const parts = (diagnostic.parts_needed || []);
       const rows = [
         ...parts.map(p => `<tr><td style="padding:4px 8px;color:#9A8070;">Pièce — ${p.name}</td><td style="padding:4px 8px;">${p.qty}× €${p.est_cost_eur} = <b>€${((p.qty||1)*(p.est_cost_eur||0)).toFixed(2)}</b></td></tr>`),
-        `<tr style="background:#f9f9f9;"><td style="padding:4px 8px;color:#9A8070;">Main d'œuvre</td><td style="padding:4px 8px;">${m.labor_h||0}h × €5/h = <b>€${m.labor_cost_eur||0}</b></td></tr>`,
-        `<tr><td style="padding:4px 8px;color:#9A8070;">Déplacement</td><td style="padding:4px 8px;">${m.distance_km||'?'} km × 2 × €0.30/km (depuis ${m.nearest_city||'?'}) = <b>€${m.travel_cost_eur||0}</b></td></tr>`,
+        `<tr style="background:#f9f9f9;"><td style="padding:4px 8px;color:#9A8070;">Main d'œuvre technique</td><td style="padding:4px 8px;">${m.labor_h_technical||0}h × €5/h</td></tr>`,
+        `<tr><td style="padding:4px 8px;color:#9A8070;">Présentation / formation communauté</td><td style="padding:4px 8px;">3h fixes × €5/h</td></tr>`,
+        `<tr style="background:#f9f9f9;"><td style="padding:4px 8px;color:#9A8070;">Total main d'œuvre</td><td style="padding:4px 8px;">${m.labor_h_total||0}h × €5/h = <b>€${m.labor_cost_eur||0}</b></td></tr>`,
+        `<tr><td style="padding:4px 8px;color:#9A8070;">Déplacement (2 visites)</td><td style="padding:4px 8px;">${m.distance_km||'?'} km vol d'oiseau × 2 (route) × 2 A/R × €0.30/km (depuis ${m.nearest_city||'?'}) = <b>€${m.travel_cost_eur||0}</b></td></tr>`,
         `<tr style="background:#f9f9f9;"><td style="padding:4px 8px;color:#9A8070;">Kit IoT Easy</td><td style="padding:4px 8px;">Systématique = <b>€${m.iot_kit_eur||100}</b></td></tr>`,
         `<tr style="border-top:2px solid #F59E0B;"><td style="padding:6px 8px;font-weight:bold;">TOTAL ESTIMÉ</td><td style="padding:6px 8px;font-weight:bold;font-size:15px;color:#F59E0B;">€${diagnostic.total_cost_est}</td></tr>`,
       ].join('');
@@ -842,7 +799,25 @@ app.post('/webhook', async (req, res) => {
       }
     };
 
-    console.log("SWITCH step=" + step + " next=" + next + " body=" + body.substring(0,20)); switch(step) {
+    console.log("SWITCH step=" + step + " next=" + next + " body=" + body.substring(0,20));
+
+    // ── RACCOURCI TEST — saute directement au contact ────────────────────────
+    if (body.toUpperCase() === 'TEST' && step < 18) {
+      state.site_type     = state.site_type     || '1';
+      state.people_count  = state.people_count  || '5';
+      state.offline_duration = state.offline_duration || '3';
+      state.symptom       = state.symptom       || '1';
+      state.recent_event  = state.recent_event  || '4';
+      state.village       = state.village       || 'Test Village';
+      state.country_code  = state.country_code  || 'AFR';
+      state.country_name  = state.country_name  || 'Test Country';
+      const skipMsg = { fr: '⚡ *Mode test* — étapes ignorées. Entrez votre contact pour déclencher le diagnostic.', en: '⚡ *Test mode* — steps skipped. Enter your contact to trigger the diagnostic.' };
+      await send(phone, skipMsg[lang] || skipMsg.fr);
+      await db.from('conversations').update({ state, step: 18 }).eq('id', conv.id);
+      return;
+    }
+
+    switch(step) {
 
       // ── STEP 1: GPS + confirmation (all in one step) ────────────────────────
       case 1: {
@@ -882,9 +857,10 @@ app.post('/webhook', async (req, res) => {
           }
 
         } else if (lat && lng) {
-          // Fresh GPS received — reverse geocode
+          // Fresh GPS received — always save raw coords first
           state.lat = parseFloat(lat);
           state.lng = parseFloat(lng);
+          console.log(`📍 GPS saved: ${state.lat}, ${state.lng}`);
           const geo = await reverseGeocode(state.lat, state.lng);
           if (geo && geo.commune && geo.country) {
             state.country_code  = geo.code3;
@@ -1009,9 +985,14 @@ app.post('/webhook', async (req, res) => {
       case 17:
         if (!mediaUrl && !isSkip) { await send(phone, ph('des panneaux (si anomalie visible)')); return; }
         await uploadIfMedia('panel_close', 'solar panel close-up cracks dirt');
-        await send(phone, t('contact', lang)); break;
+        await send(phone, t('extra_photo', lang)); break;
 
       case 18:
+        // Photo bonus optionnelle
+        if (!isSkip) await uploadIfMedia('extra', 'additional context photo — anomaly, wiring, environment');
+        await send(phone, t('contact', lang)); break;
+
+      case 19:
         if (state.pending_confirm === 'contact') {
           if (isYes) {
             state.contact = state.pending_contact;
@@ -1035,7 +1016,7 @@ app.post('/webhook', async (req, res) => {
         await send(phone, t('analyzing', lang));
 
         // Save state first
-        await db.from('conversations').update({ state, step: 19, status: "complete" }).eq('id', conv.id);
+        await db.from('conversations').update({ state, step: 20, status: "complete" }).eq('id', conv.id);
 
         // Generate AI diagnostic — wrapped in try/catch so failure doesn't block site creation
         let diag = {};
@@ -1073,14 +1054,10 @@ app.post('/webhook', async (req, res) => {
           kva: diag.kva_estimated || 0,
           country, region: 'west',
           people: parseInt(state.people_count) || 0,
-          photo_url:        state.photos?.[0]?.url || null,
-          photo_panels_url: state.photos?.find(p => p.type === 'panels_far')?.url || null,
+          photo_url: state.photos?.[0]?.url || null,
           fault: diag.fault_primary || 'À diagnostiquer',
           sourced_at: new Date().toISOString().split('T')[0],
-          budget: diag.total_cost_est || null,
-          workflow_status: 'received',
-          kwhconso_total:   0,
-          kwhconso_last24h: 0
+          budget: diag.total_cost_est || null
         });
         if (siteErr) console.error('⚠️ Site insert error:', siteErr.message);
         else console.log('✅ Site created:', siteId);
@@ -1139,14 +1116,18 @@ Référence : *${siteId}*
 
 Notre équipe technique a reçu votre rapport et les photos. Un technicien vous contactera dans les 48h.
 
-Merci d'aider votre communauté ! 🌞`,
+Une question ? Écrivez-nous : *info@lumoki.africa*
+
+Merci d'aider votre communauté ! 🌞 lumoki.africa`,
           en: `✅ *Report registered!*
 
 Reference: *${siteId}*
 
 Our technical team has received your report and photos. A technician will contact you within 48 hours.
 
-Thank you for helping your community! 🌞`,
+Questions? Contact us: *info@lumoki.africa*
+
+Thank you for helping your community! 🌞 lumoki.africa`,
           sw: `✅ *Ripoti imesajiliwa!*
 
 Nambari ya kumbukumbu: *${siteId}*
