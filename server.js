@@ -1,6 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// LUMOKI — WhatsApp Diagnostic Chatbot
-// Stack: Node.js + Express + Twilio + Claude Vision + Supabase + Resend
+// LUMOKI — WhatsApp Diagnostic Chatbot v2
+// Architecture : conversationnelle (Claude Haiku collecte) + Claude Opus diagnostic
+// Stack: Node.js + Express + Twilio + Supabase + Resend
 // ─────────────────────────────────────────────────────────────────────────────
 
 const express    = require('express');
@@ -20,306 +21,98 @@ const ai        = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const resend    = new Resend(process.env.RESEND_API_KEY);
 const twilioCli = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 
-// ── TRANSLATIONS ─────────────────────────────────────────────────────────────
-const T = {
-  welcome: {
-    fr:  "🌞 *Bienvenue sur Lumoki*\n_Ressusciter le solaire en Afrique subsaharienne_\n\nJe suis votre assistant de signalement. En 10 minutes, votre rapport permettra d'envoyer un technicien et de remettre ce site en service — *gratuitement* pour la communauté.\n\nCommençons ! 📍 Partagez votre *position GPS* (bouton 📎 → Lieu)\nOu tapez *SKIP* pour continuer sans GPS.",
-    en:  "🌞 *Welcome to Lumoki*\n_Resurrecting solar across Sub-Saharan Africa_\n\nI'm your reporting assistant. In 10 minutes, your report will help dispatch a technician and bring this site back to life — *free of charge* for the community.\n\nLet's start! 📍 Share your *GPS location* (button 📎 → Location)\nOr type *SKIP* to continue without GPS.",
-    wo:  "Salaam ! 🌞 Man mooy assistant Lumoki.\nDanga ma jënd ak installation solaire bu dëkk. Amna yënn fukki minit.\n\nFan la installation bi nekk ? *Réew* ak *dëkk* ?",
-    bm:  "I ni ce ! 🌞 Ne ye Lumoki ka dɛmɛbaga ye.\nN bena i dɛmɛ solar installation minɛnin ka sɛbɛn.\n\nJamana ni dugu jumɛn na installation in be ?",
-    sw:  "Habari! 🌞 Mimi ni msaidizi wa Lumoki.\nNitakusaidia kuripoti mfumo wa nishati ya jua uliovunjika. Inachukua dakika 10.\n\nMfumo uko nchi gani na kijiji gani?",
-    ha:  "Sannu! 🌞 Ni ne mataimakin Lumoki.\nZan taimaka maka rahoton tsarin hasken rana da ya karye. Zai ɗauki mintoci 10.\n\nA wace ƙasa da wane ƙauye ne tsarin yake?",
-    yo:  "Ẹ káàbọ̀! 🌞 Mo jẹ olùrànlọ́wọ́ Lumoki.\nEmi yoo ràn ọ lọ́wọ́ lati ròyìn ètò agbára oòrùn tí ó fọ́.\n\nNí orílẹ̀-èdè wo àti abúlé wo ni ètò náà wà?",
-    fon: "Alo! 🌞 Nyɛ wɛ nye Lumoki tɔn azɔwanú.\nUn na d'acɛ we bo na gbɛ̌ nǔ e kúnkan solar gbɔjɛ tɔn.\n\nGan tɛ mɛ kpo toxo tɛ mɛ kpo wɛ solar ɔ ɖè?",
-    dyu: "I ni ce! 🌞 Ne ye Lumoki ka dɛmɛbaga ye.\nN bena i dɛmɛ solar installation minɛnin sɛbɛn.\n\nDugukolo ni dugu jumɛn na installation in be?"
-  },
-  country: {
-    fr: "Dans quel pays ?\n\n1️⃣ Bénin\n2️⃣ Sénégal\n3️⃣ Mali\n4️⃣ Burkina Faso\n5️⃣ Guinée\n6️⃣ Côte d'Ivoire\n7️⃣ Nigeria\n8️⃣ Ghana\n9️⃣ Tanzanie\n🔟 Ouganda\n1️⃣1️⃣ Zambie\n1️⃣2️⃣ Autre",
-    en: "Which country?\n\n1️⃣ Benin\n2️⃣ Senegal\n3️⃣ Mali\n4️⃣ Burkina Faso\n5️⃣ Guinea\n6️⃣ Ivory Coast\n7️⃣ Nigeria\n8️⃣ Ghana\n9️⃣ Tanzania\n🔟 Uganda\n1️⃣1️⃣ Zambia\n1️⃣2️⃣ Other",
-    sw: "Nchi gani?\n\n1️⃣ Benin\n2️⃣ Senegal\n3️⃣ Mali\n4️⃣ Burkina Faso\n5️⃣ Guinea\n6️⃣ Ivory Coast\n7️⃣ Nigeria\n8️⃣ Ghana\n9️⃣ Tanzania\n🔟 Uganda\n1️⃣1️⃣ Zambia\n1️⃣2️⃣ Nyingine",
-    wo: "Fan ci réew yi ?\n\n1️⃣ Bénin\n2️⃣ Sénégal\n3️⃣ Mali\n4️⃣ Burkina Faso\n5️⃣ Guinée\n6️⃣ Côte d'Ivoire\n7️⃣ Nigeria\n8️⃣ Ghana\n9️⃣ Tanzanie\n🔟 Ouganda\n1️⃣1️⃣ Zambie\n1️⃣2️⃣ Yeneen",
-    bm: "Jamana jumɛn ?\n\n1️⃣ Bénin\n2️⃣ Sénégal\n3️⃣ Mali\n4️⃣ Burkina Faso\n5️⃣ Guinée\n6️⃣ Côte d'Ivoire\n7️⃣ Nigeria\n8️⃣ Ghana\n9️⃣ Tanzanie\n🔟 Ouganda\n1️⃣1️⃣ Zambie\n1️⃣2️⃣ Wɛrɛ",
-    fon: "Gan tɛ ?\n\n1️⃣ Bénin\n2️⃣ Sénégal\n3️⃣ Mali\n4️⃣ Burkina Faso\n5️⃣ Guinée\n6️⃣ Côte d'Ivoire\n7️⃣ Nigeria\n8️⃣ Ghana\n9️⃣ Tanzanie\n🔟 Ouganda\n1️⃣1️⃣ Zambie\n1️⃣2️⃣ Vɔ ɖevo",
-    ha: "Wace ƙasa?\n\n1️⃣ Benin\n2️⃣ Senegal\n3️⃣ Mali\n4️⃣ Burkina Faso\n5️⃣ Guinea\n6️⃣ Ivory Coast\n7️⃣ Nigeria\n8️⃣ Ghana\n9️⃣ Tanzania\n🔟 Uganda\n1️⃣1️⃣ Zambia\n1️⃣2️⃣ Wani",
-    yo: "Orílẹ̀-èdè wo?\n\n1️⃣ Benin\n2️⃣ Senegal\n3️⃣ Mali\n4️⃣ Burkina Faso\n5️⃣ Guinea\n6️⃣ Ivory Coast\n7️⃣ Nigeria\n8️⃣ Ghana\n9️⃣ Tanzania\n🔟 Uganda\n1️⃣1️⃣ Zambia\n1️⃣2️⃣ Mìíràn",
-    dyu: "Dugukolo jumɛn ?\n\n1️⃣ Bénin\n2️⃣ Sénégal\n3️⃣ Mali\n4️⃣ Burkina Faso\n5️⃣ Guinée\n6️⃣ Côte d'Ivoire\n7️⃣ Nigeria\n8️⃣ Ghana\n9️⃣ Tanzanie\n🔟 Ouganda\n1️⃣1️⃣ Zambie\n1️⃣2️⃣ Wɛrɛ"
-  },
-  village: {
-    fr: "Dans quel *village ou ville* exactement ?",
-    en: "In which *village or town* exactly?",
-    sw: "Katika *kijiji au mji* gani hasa?",
-    wo: "Fan ci *dëkk* bi ?",
-    bm: "*Dugu* jumɛn na ?",
-    fon: "*Toxo* tɛ mɛ ?",
-    ha: "Wane *gari ko birni* ne hasa?",
-    yo: "Ní *abúlé tàbí ìlú* wo gangan?",
-    dyu: "*Dugu* jumɛn na ?"
-  },
-  families: {
-    fr: "Combien de *familles* bénéficient de cette installation ? _(chiffre approximatif)_",
-    en: "How many *families* benefit from this installation? _(approximate number)_",
-    wo: "Jëkër *jëm* yi ngiy jëfandikoo installation bii ? _(nimero bu mujj)_",
-    bm: "*Somɔgɔ joli* bɛ installation in kɛlɛ ? _(joli caman)_",
-    sw: "*Familia ngapi* zinanufaika na mfumo huu? _(nambari ya takriban)_",
-    ha: "*Iyalai nawa* suke amfani da wannan tsarin? _(adadi na daidai)_",
-    yo: "*Ìdílé mélòó* ni ń jẹ àǹfààní ètò yìí? _(iye tó sún mọ́)_",
-    fon: "*Xwédo wɛ nɛ nú* solar ɔ bló? _(tɛnmɛ bló)_",
-    dyu: "*Somɔgɔ joli* bɛ installation in kɛlɛ ? _(joli caman)_"
-  },
-  site_type: {
-    fr: "Quel type d'installation ?\n\n1️⃣ Maisons / familles\n2️⃣ École\n3️⃣ Dispensaire / santé\n4️⃣ Pompe à eau\n5️⃣ Autre",
-    en: "What type of installation?\n\n1️⃣ Homes / families\n2️⃣ School\n3️⃣ Health clinic\n4️⃣ Water pump\n5️⃣ Other",
-    sw: "Aina gani ya mfumo?\n\n1️⃣ Nyumba / familia\n2️⃣ Shule\n3️⃣ Kliniki\n4️⃣ Pampu ya maji\n5️⃣ Nyingine",
-    wo: "Ana install bi ?\n\n1️⃣ Kër yi / familles\n2️⃣ Daara\n3️⃣ Dispensaire\n4️⃣ Pompe\n5️⃣ Yeneen",
-    bm: "Installation jɛn ye ?\n\n1️⃣ Sow / familles\n2️⃣ Kalanso\n3️⃣ Furaso\n4️⃣ Ji pompe\n5️⃣ Wɛrɛ",
-    ha: "Wane irin tsari ne?\n\n1️⃣ Gidaje / iyalai\n2️⃣ Makaranta\n3️⃣ Asibitin lafiya\n4️⃣ Famfo ruwa\n5️⃣ Wani abu",
-    yo: "Iru eto wo ni?\n\n1️⃣ Ile / ebi\n2️⃣ Ile-iwe\n3️⃣ Ile-iwosan\n4️⃣ Fampu omi\n5️⃣ Miiiran",
-    fon: "Klasi solar tɛ wɛ?\n\n1️⃣ Xwé / xwédo\n2️⃣ Suklu\n3️⃣ Azɔ gbigbɔ\n4️⃣ Tomatin dji\n5️⃣ Vɔ ɖevo",
-    dyu: "Installation jɛn ye ?\n\n1️⃣ Sow / familles\n2️⃣ Kalanso\n3️⃣ Furaso\n4️⃣ Ji pompe\n5️⃣ Wɛrɛ"
-  },
+// ── LOGO LUMOKI (URL publique Supabase storage) ───────────────────────────────
+const LUMOKI_LOGO_URL = process.env.LUMOKI_LOGO_URL || null;
 
-  confirm_location: {
-    fr: (commune, country) => `📍 Vous êtes à *${commune}*, *${country}*\nC'est bien l'emplacement de l'installation ? (oui / non)\n_Si non, tapez le nom du village/commune._`,
-    en: (commune, country) => `📍 You are in *${commune}*, *${country}*\nIs this the installation location? (yes / no)\n_If not, type the village/commune name._`,
-    sw: (commune, country) => `📍 Uko *${commune}*, *${country}*\nHii ndiyo mahali pa mfumo? (ndiyo / hapana)`,
-    wo: (commune, country) => `📍 Yëgël ci *${commune}*, *${country}*\nMoo rekk bi installation bi nekk? (waaw / déedéet)`,
-    bm: (commune, country) => `📍 I bɛ *${commune}*, *${country}*\nInstallation in bɛ yen wa? (ɔwɔ / ayi)`,
-    fon: (commune, country) => `📍 A ɖò *${commune}*, *${country}*\nÉ nyí finɛ solar ɔ ɖè? (ɛɛn / eyi)`,
-    ha: (commune, country) => `📍 Kuna *${commune}*, *${country}*\nNan ne tsarin yake? (eh / a'a)`,
-    yo: (commune, country) => `📍 O wà ní *${commune}*, *${country}*\nÍbẹ̀ ni ètò wà? (bẹ́ẹ̀ni / rárá)`,
-    dyu: (commune, country) => `📍 I bɛ *${commune}*, *${country}*\nInstallation in bɛ yen wa? (ɔwɔ / ayi)`
-  },
-  confirm: {
-    fr: (val) => `Vous avez répondu : *${val}*\nC'est bien ça ? (oui / non)`,
-    en: (val) => `You answered: *${val}*\nIs that correct? (yes / no)`,
-    sw: (val) => `Ulijibu: *${val}*\nJe hiyo ni sahihi? (ndiyo / hapana)`,
-    wo: (val) => `Defal na : *${val}*\nMoo rekk? (waaw / déedéet)`,
-    bm: (val) => `I y'a jaabi : *${val}*\nA sɔrɔ wa? (ɔwɔ / ayi)`,
-    fon: (val) => `A ná : *${val}*\nÉ nyí mɔ̌? (ɛɛn / eyi)`,
-    ha: (val) => `Ka amsa: *${val}*\nHaka ne? (eh / a'a)`,
-    yo: (val) => `O dáhùn: *${val}*\nṢé ìyẹn tọ́? (bẹ́ẹ̀ni / rárá)`,
-    dyu: (val) => `I y'a jaabi : *${val}*\nA sɔrɔ wa? (ɔwɔ / ayi)`
-  },
-  confirm_no: {
-    fr: "D'accord, recommençons. ",
-    en: "OK, let's try again. ",
-    sw: "Sawa, hebu tuanze tena. ",
-    wo: "Waaw, jegelee. ",
-    bm: "Aw, an dɔ lajɛ. ",
-    fon: "Enyi, bɔ dó. ",
-    ha: "To, mu sake. ",
-    yo: "Ó dára, jẹ́ ká tún. ",
-    dyu: "Aw, an dɔ lajɛ. "
-  },
-  gps: {
-    fr: "📍 Partagez votre *position GPS* maintenant (bouton 📎 → Position)\nOu tapez *SKIP* si vous ne pouvez pas.",
-    en: "📍 Share your *GPS location* now (button 📎 → Location)\nOr type *SKIP* if you can't.",
-    sw: "📍 Shiriki *eneo lako la GPS* sasa (kitufe 📎 → Mahali)\nAu andika *SKIP* kama huwezi.",
-    wo: "📍 Yónneel *position GPS* bi kanam (bouton 📎 → Position)\nWala def *SKIP* bu mën ul.",
-    bm: "📍 I *GPS position* ci dɔ (bouton 📎 → Position)\nWala sɛbɛn *SKIP* ni i ma se.",
-    fon: "📍 Sɛ́nd *position GPS* towe ɖíe (bouton 📎 → Position)\nEnyi a sixu ǎ wlan *SKIP*.",
-    ha: "📍 Raba *wurin GPS* yanzu (maɓallin 📎 → Wuri)\nKo rubuta *SKIP* in ba za ku iya ba.",
-    yo: "📍 Pín *ìpò GPS* rẹ bí (bọ́tìnnì 📎 → Ìpò)\nTàbí tẹ *SKIP* bí o kò bá lè.",
-    dyu: "📍 I *GPS position* ci dɔ (bouton 📎 → Position)\nWala sɛbɛn *SKIP* ni i ma se."
-  },
-  duration: {
-    fr: "Depuis combien de temps ?\n\n1️⃣ Moins d'un jour\n2️⃣ Moins d'une semaine\n3️⃣ Moins d'un mois\n4️⃣ Moins d'un an\n5️⃣ Plus d'un an",
-    en: "How long has it been down?\n\n1️⃣ Less than a day\n2️⃣ Less than a week\n3️⃣ Less than a month\n4️⃣ Less than a year\n5️⃣ More than a year",
-    sw: "Imekuwa chini kwa muda gani?\n\n1️⃣ Chini ya siku\n2️⃣ Chini ya wiki\n3️⃣ Chini ya mwezi\n4️⃣ Chini ya mwaka\n5️⃣ Zaidi ya mwaka",
-    wo: "*Jamm* la installation bi dëkkul ?\n_(Misaal: 2 fan, 1 ayu-bés, 1 wèr)_",
-    bm: "*Waati joli* bɛ a sen installation in kɛlɛ ?\n_(Misali: tile 2, dɔgɔkun 1, kalo 1)_",
-    ha: "Tsarin yana rashin aiki tun *yaushe*?\n_(Misali: kwana 2, mako 1, wata 1)_",
-    yo: "Ètò náà ti dáwọ́ ṣiṣẹ́ fún *ìgbà mélòó*?\n_(Àpẹẹrẹ: ọjọ́ 2, ọ̀sẹ̀ 1, oṣù 1)_",
-    fon: "*Hwenu* tɛ mɛ wɛ solar ɔ ma bló ǎ?\n_(Kpɔ́ndéwú: zǎn 2, vɔsatɔn 1, sín 1)_",
-    dyu: "*Waati joli* bɛ a sen installation in kɛlɛ ?\n_(Misali: tile 2, dɔgɔkun 1, kalo 1)_"
-  },
-  symptom: {
-    fr: "Qu'est-ce qui se passe exactement ?\nChoisissez le numéro :\n\n1️⃣ Rien ne s'allume du tout\n2️⃣ Ça s'allume le jour mais pas la nuit\n3️⃣ Ça coupe souvent\n4️⃣ La lumière est faible / les appareils marchent mal\n5️⃣ Il y a une odeur ou de la chaleur bizarre\n6️⃣ Autre (expliquez)",
-    en: "What exactly is happening?\nChoose a number:\n\n1️⃣ Nothing works at all\n2️⃣ Works during day but not at night\n3️⃣ Cuts off frequently\n4️⃣ Weak light / appliances work poorly\n5️⃣ Strange smell or heat\n6️⃣ Other (explain)",
-    sw: "Nini kinachotokea hasa?\nChagua nambari:\n\n1️⃣ Hakuna kinachofanya kazi\n2️⃣ Inafanya kazi mchana lakini si usiku\n3️⃣ Inakatika mara kwa mara\n4️⃣ Mwanga dhaifu / vifaa vinavyofanya kazi vibaya\n5️⃣ Harufu au joto la ajabu\n6️⃣ Nyingine (eleza)",
-    wo: "Lan la xam ci kanam ?\nTann nimer bi:\n\n1️⃣ Dara du jëf\n2️⃣ Jëf ci cig këram, du jëf ci guddi\n3️⃣ Dafay tëdd lool\n4️⃣ Jant bi néew / appareils yi dañu metti\n5️⃣ Am na benn yëgël walla tangaay\n6️⃣ Yeneen (waxtaan)",
-    bm: "Mun bɛ kɛ sisan ?\nNomoro dɔ sugandi:\n\n1️⃣ Fɛn si tɛ kɛlɛ\n2️⃣ Tile la kɛlɛ, su tɛ kɛlɛ\n3️⃣ A bɛ ban joona joona\n4️⃣ Yeelen dɔgɔman / machine tɛ kɛlɛ\n5️⃣ Bɔ cɛ wɛrɛ wala teliman\n6️⃣ Wɛrɛ (yira)",
-    ha: "Menene ke faruwa?\nZaɓi lamba:\n\n1️⃣ Babu abin da ke aiki\n2️⃣ Yana aiki rana amma ba dare\n3️⃣ Yana yanke sau da yawa\n4️⃣ Haske mai rauni / na'urori suna aiki marasa kyau\n5️⃣ Wari ko zafi mai ban mamaki\n6️⃣ Wani abu (bayyana)",
-    yo: "Kíni tó ń ṣẹlẹ̀ gangan?\nYan nọ́mbà:\n\n1️⃣ Ohunkóhun kò ń ṣiṣẹ́\n2️⃣ Ń ṣiṣẹ́ lọ́sàn ṣùgbọ́n kò ṣiṣẹ́ lóru\n3️⃣ Ń pa padà lọ́pọ̀ ìgbà\n4️⃣ Ìmọ̀lẹ̀ àìlera / ẹ̀rọ ń ṣiṣẹ́ àìdára\n5️⃣ Ará tàbí ìgbóná àjèjì\n6️⃣ Mìíràn (ṣàlàyé)",
-    fon: "Nɛ nú ɖé wɛ nyí ɔ?\nNɔmblu ɖé sɔ:\n\n1️⃣ Nǔ ɖebǔ ma wà ǎ\n2️⃣ Wà azǎ mɛ, ma wà zǎn mɛ ǎ\n3️⃣ Cikɔn bɔ lɛkɔ\n4️⃣ Weziza kpɛví / nǔwlanwlan lɛ ma wà nɔ ǎ\n5️⃣ Wɛnsísá wɛ kpo vɔ kpo\n6️⃣ Vɔ ɖevo (ɖɔ)",
-    dyu: "Mun bɛ kɛ sisan ?\nNomoro dɔ sugandi:\n\n1️⃣ Fɛn si tɛ kɛlɛ\n2️⃣ Tile la kɛlɛ, su tɛ kɛlɛ\n3️⃣ A bɛ ban joona joona\n4️⃣ Yeelen dɔgɔman\n5️⃣ Bɔ cɛ wɛrɛ\n6️⃣ Wɛrɛ (yira)"
-  },
-  event: {
-    fr: "Est-ce qu'il s'est passé quelque chose récemment ?\n\n1️⃣ Orage / foudre\n2️⃣ Inondation\n3️⃣ Quelqu'un a touché l'installation\n4️⃣ Rien de particulier",
-    en: "Did anything happen recently?\n\n1️⃣ Storm / lightning\n2️⃣ Flood\n3️⃣ Someone touched the installation\n4️⃣ Nothing in particular",
-    sw: "Je, kuna chochote kilichotokea hivi karibuni?\n\n1️⃣ Dhoruba / umeme\n2️⃣ Mafuriko\n3️⃣ Mtu aligusa mfumo\n4️⃣ Hakuna kitu maalum",
-    wo: "Am na dara mujj ci kanam ?\n\n1️⃣ Sanq / tulli\n2️⃣ Ndox bu baax\n3️⃣ Ku tànn installation bi\n4️⃣ Dara amul",
-    bm: "Fɛn dɔ kɛra ka ɲɛ ?\n\n1️⃣ Saniya / sanji\n2️⃣ Ji bɔra\n3️⃣ Mɔgɔ dɔ ye installation in tɔ\n4️⃣ Fɛn si tɛ kɛ",
-    ha: "Shin wani abu ya faru kwanan nan?\n\n1️⃣ Hadari / walƙiya\n2️⃣ Ambaliya\n3️⃣ Wani ya taɓa tsarin\n4️⃣ Babu komai na musamman",
-    yo: "Ṣé ohunkóhun ṣẹlẹ̀ láìpẹ́?\n\n1️⃣ Ìjì / mànàmáná\n2️⃣ Ìkún omi\n3️⃣ Ẹnikan fọwọ́ kan ètò náà\n4️⃣ Ohunkóhun pàtàkì",
-    fon: "Nǔ ɖé wɛ jɛ hwenu vɔvɔ ɔ mɛ à?\n\n1️⃣ Zɔ / avɔ\n2️⃣ Xù\n3️⃣ Mɛ ɖé zé solar ɔ sín nǔ\n4️⃣ Nǔ ɖevo ǎ",
-    dyu: "Fɛn dɔ kɛra ka ɲɛ ?\n\n1️⃣ Saniya\n2️⃣ Ji bɔra\n3️⃣ Mɔgɔ dɔ ye installation in tɔ\n4️⃣ Fɛn si tɛ kɛ"
-  },
-  inv_far:       { fr: "Merci ! Maintenant les photos 📸\n\n*Onduleur / Boîte principale*\nEnvoie une photo *DE LOIN* pour voir toute la boîte", en: "Thanks! Now photos 📸\n\n*Inverter / Main box*\nSend a photo *FROM FAR* to see the whole box", sw: "Asante! Sasa picha 📸\n\n*Inverter*\nTuma picha *KWA MBALI*", wo: "Jërëjëf ! 📸\n*Boîte bi* — litrat gu *yomb*", bm: "I ni ce ! 📸\n*Boîte* — fɔtɔ ci *jan*", ha: "Na gode! 📸\n*Inverter* — hoto *daga nesa*", yo: "Ẹ dúpẹ́! 📸\n*Inverter* — fọ́tò *láti jíjìn*", fon: "Akpé! 📸\n*Onduleur* — foto *dó tó*", dyu: "I ni ce ! 📸\n*Boîte* — fɔtɔ ci *jan*" },
-  inv_brand:     { fr: "Super ! Photo *PROCHE* de l'étiquette (marque, modèle, numéros)", en: "Great! *CLOSE* photo of the label (brand, model, numbers)", sw: "Vizuri! Picha *YA KARIBU* ya lebo (chapa, modeli, nambari)", wo: "Baax na ! Litrat gu *gudd* ci étiquette (marque, modèle, nimeero)", bm: "Aw ni baara ! Fɔtɔ *ka gɛlɛn* ci étiquette (marque, modèle, nimɔrɔ)", ha: "Kyau! Hoto *KUSA* na lakabi (alamar, samfurin, lambobi)", yo: "Ó dára! Fọ́tò *tímọ́* ti àmì (àmì, àpẹẹrẹ, nọ́mbà)", fon: "Nɔ wà! Foto *tɛnmɛ* sín étiquette (marque, modèle, nɔmblu)", dyu: "Aw ni baara ! Fɔtɔ *ka gɛlɛn* ci étiquette" },
-  inv_screen:    { fr: "Il y a un *écran allumé* ? (oui/non)\nSi oui → photo de l'écran", en: "Is there a *lit screen*? (yes/no)\nIf yes → photo of the screen", sw: "Kuna *skrini inayowaka*? (ndiyo/hapana)\nKama ndiyo → picha ya skrini", wo: "Am na *écran bu yër* ? (waaw/déedéet)\nBu am na → litrat ci écran bi", bm: "*Écran* dɔ bɛ yɛrɛ ? (ɔwɔ/ayi)\nA bɛ yɛrɛ kɔ → fɔtɔ ci a kan", ha: "Akwai *allon da ke haskakawa*? (eh/a'a)\nIdan eh → hoto na allon", yo: "*Ojú-iwe tí ó ń tàn* wà? (bẹ́ẹ̀ni/rárá)\nBí bẹ́ẹ̀ni → fọ́tò rẹ̀", fon: "*Écran e tɔ́n* ɖè ɖò? (ɛɛn/eyi)\nɛɛn kɔ → foto sín écran ɔ", dyu: "*Écran* dɔ bɛ yɛrɛ ? (ɔwɔ/ayi)" },
-  bat_far:       { fr: "Maintenant les *batteries* 🔋\nPhoto *DE LOIN* pour voir *toutes* les batteries", en: "Now the *batteries* 🔋\nPhoto *FROM FAR* to see *all* batteries", sw: "Sasa *betri* 🔋\nPicha *KWA MBALI* kuona *betri zote*", wo: "Kanam *pil yi* 🔋\nLitrat gu *yomb* ngir xam *pil yi bée*", bm: "Sisan *batɛri* 🔋\nFɔtɔ ci *jan* walasa *batɛri bɛɛ* ye", ha: "Yanzu *baturin* 🔋\nHoto *daga nesa* don ganin *duk baturin*", yo: "Báyìí àwọn *batiri* 🔋\nFọ́tò *láti jíjìn* kí a rí *gbogbo batiri*", fon: "Égbé ɔ, *batri lɛ* 🔋\nFoto *dó tó* bo na mɔ *batri lɛ bǐ*", dyu: "Sisan *batɛri* 🔋\nFɔtɔ ci *jan* walasa *batɛri bɛɛ* ye" },
-  bat_brand:     { fr: "Photo *PROCHE* de l'étiquette d'une batterie (marque, chiffres)", en: "*CLOSE* photo of one battery label (brand, numbers)", sw: "Picha *YA KARIBU* ya lebo ya betri moja (chapa, nambari)", wo: "Litrat gu *gudd* ci étiquette pil (marque, nimeero)", bm: "Fɔtɔ *ka gɛlɛn* ci batɛri kelen kan (marque, nimɔrɔ)", ha: "Hoto *KUSA* na lakabi a kan baturin ɗaya (alamar, lambobi)", yo: "Fọ́tò *tímọ́* ti àmì lórí batiri kan (àmì, nọ́mbà)", fon: "Foto *tɛnmɛ* sín étiquette e ɖò batri ɖokpo jí", dyu: "Fɔtɔ *ka gɛlɛn* ci batɛri kelen kan" },
-  bat_terminals: { fr: "Photo des *bornes et câbles* des batteries (corrosion ?)", en: "Photo of battery *terminals and cables* (corrosion?)", sw: "Picha ya *vituo na nyaya* za betri (kutu?)", wo: "Litrat ci *bornes ak câbles yi* ci pil yi (redd ?)", bm: "Fɔtɔ ci batɛri *bornes ni câbles* (kɔrɔsion ?)", ha: "Hoto na *tasoshin da wayoyin* na baturin (tsatsa?)", yo: "Fọ́tò ti *àwọn ìdúróṣinṣin àti okùn* batiri (àjàkálẹ̀?)", fon: "Foto sín *bornes kpo câbles lɛ kpo* sín batri lɛ (gbɔví?)", dyu: "Fɔtɔ ci batɛri *bornes ni câbles* (kɔrɔsion ?)" },
-  panels_far:    { fr: "Maintenant les *panneaux* ☀️\nPhoto *DE LOIN* pour voir tous les panneaux", en: "Now the *solar panels* ☀️\nPhoto *FROM FAR* to see all the panels", sw: "Sasa *paneli za jua* ☀️\nPicha *KWA MBALI* kuona paneli zote paa", wo: "Kanam *panneau yi* ☀️\nLitrat gu *yomb* ngir xam panneau bée ci xëtt bi", bm: "Sisan *panneau* ☀️\nFɔtɔ ci *jan* ka panneau bɛɛ ye can kan", ha: "Yanzu *faifan rana* ☀️\nHoto *daga nesa* don ganin faifan a kan rufin", yo: "Báyìí *pánẹ́ẹ̀lì oòrùn* ☀️\nFọ́tò *láti jíjìn* láti rí gbogbo pánẹ́ẹ̀lì", fon: "Égbé ɔ, *panneau lɛ* ☀️\nFoto *dó tó* bo na mɔ panneau lɛ bǐ ɖò susu jí", dyu: "Sisan *panneau* ☀️\nFɔtɔ ci *jan* ka panneau bɛɛ ye" },
-  panels_close:  { fr: "Anomalie visible (fissure, saleté, ombre) ? → Photo *PROCHE*\nSinon tapez *OK*", en: "Any visible anomaly (crack, dirt, shadow)? → *CLOSE* photo\nOtherwise type *OK*", sw: "Kuna hitilafu inayoonekana? → Picha *YA KARIBU*\nVinginevyo andika *OK*", wo: "Dara xam ci kanam (fenḍ, mbedd) ? → Litrat gu *gudd*\nYëg sax bind *OK*", bm: "Fɛn tɔ ye (fenɛ, kulun) ? → Fɔtɔ *ka gɛlɛn*\nKɔ tɔ sɛbɛn *OK*", ha: "Akwai wani abu maras al'ada? → Hoto *KUSA*\nIn ba haka ba buga *OK*", yo: "Ohunkóhun tí kò ní dára? → Fọ́tò *tímọ́*\nBí bẹ́ẹ̀ kọ́ tẹ *OK*", fon: "Nǔ ɖé e ma sɔgbe ǎ? → Foto *tɛnmɛ*\nBɔ mɔ ǎ kɔ tɛɛn *OK*", dyu: "Fɛn tɔ ye (fenɛ, kulun) ? → Fɔtɔ *ka gɛlɛn*\nKɔ tɔ sɛbɛn *OK*" },
-  tableau:       { fr: "Dernières photos 💪 Le *tableau électrique* (fusibles/disjoncteurs)\nUne photo *DE LOIN* puis une *PROCHE* des fusibles", en: "Last photos 💪 The *electrical panel* (fuses/breakers)\nOne photo *FROM FAR* then *CLOSE* of the fuses", sw: "Picha za mwisho 💪 *Paneli ya umeme*\nPicha *KWA MBALI* kisha *YA KARIBU* ya fyusi", wo: "Litrati yi dëkk bi 💪 *Tableau bi*\nLitrat gu *yomb* gannaaw gu *gudd* ci fusible yi", bm: "Fɔtɔ kɔrɔw 💪 *Tableau*\nFɔtɔ ci *jan* ani ci *gɛlɛn* ka fusible ye", ha: "Hotuna na ƙarshe 💪 *Allon wutar lantarki*\nHoto *daga nesa* sannan *kusa* na fyus", yo: "Ẹgbẹ́ ìkẹyìn 💪 *Pánẹ́ẹ̀lì*\nFọ́tò *láti jíjìn* lẹ́hìn *tímọ́* ti fusi", fon: "Foto gudogudo lɛ 💪 *Tableau électrique*\nFoto *dó tó* bo bɛ *tɛnmɛ* sín fusible lɛ", dyu: "Fɔtɔ kɔrɔw 💪 *Tableau*\nFɔtɔ ci *jan* ani ci *gɛlɛn*" },
-  extra_photo:   {
-    fr: "📸 Voulez-vous ajouter une *photo supplémentaire* ? (anomalie, câblage, contexte...)\nNotre IA l'analysera aussi.\nEnvoyez la photo directement, ou tapez *SKIP* pour passer.",
-    en: "📸 Would you like to add an *extra photo*? (anomaly, wiring, context...)\nOur AI will analyse it too.\nSend the photo directly, or type *SKIP* to continue.",
-    sw: "📸 Unataka kuongeza *picha ya ziada*? Tuma picha au andika *SKIP*.",
-    wo: "📸 Bëgg nga yónneel *litrat u yeneen*? Yónneel wala def *SKIP*.",
-    bm: "📸 *Fɔtɔ wɛrɛ* ci dɔ? Fɔtɔ yɔn wala sɛbɛn *SKIP*.",
-    fon: "📸 *Foto ɖevo* sɛ́nd? Sɛ́nd foto wá alǒ wlan *SKIP*.",
-    ha: "📸 *Hoto ƙarin*? Aika hoto ko rubuta *SKIP*.",
-    yo: "📸 *Fọ́tò mìíràn*? Fi ránṣẹ́ tàbí tẹ *SKIP*.",
-    dyu: "📸 *Fɔtɔ wɛrɛ* ci dɔ? Fɔtɔ yɔn wala sɛbɛn *SKIP*."
-  },
-  contact:       { fr: "Excellent ! Dernière question 🙏\nVotre *nom* et votre *numéro de téléphone* pour vous recontacter ?", en: "Excellent! Last question 🙏\nYour *name* and *phone number* so we can contact you back?", sw: "Vizuri sana! Swali la mwisho 🙏\nJina lako na nambari ya simu?", wo: "Baax na lool ! Laaj bi bëgg bi 🙏\n*Turu* ak *nimeero téléphone* ?", bm: "Aw ni baara ! Ɲininkali kɔrɔ 🙏\nI *tɔgɔ* ni i *téléphone nimɔrɔ* ?", ha: "Kyau sosai! Tambaya ta ƙarshe 🙏\n*Sunanka* da *lambar wayarka* ?", yo: "Ó tayọ! Ìbéèrè ìkẹyìn 🙏\n*Orúkọ* àti *nọ́mbà fóònù* rẹ?", fon: "Nɔ wà tawun! Nùkanbyɔ gudogudo ɔ 🙏\n*Nyikɔ* kpo *nɔmblu téléphone* tɔn kpo?", dyu: "Aw ni baara ! Ɲininkali kɔrɔ 🙏\nI *tɔgɔ* ni i *téléphone nimɔrɔ* ?" },
-  analyzing:     { fr: "Merci beaucoup ! 🙏\nToutes vos infos sont transmises à notre équipe technique.\nL'analyse IA est en cours... ⏳\n\nVous recevrez une confirmation dans quelques minutes.", en: "Thank you very much! 🙏\nAll your info has been sent to our technical team.\nAI analysis in progress... ⏳\n\nYou'll receive a confirmation in a few minutes.", sw: "Asante sana! 🙏\nTaarifa zote zimetumwa kwa timu yetu.\nUchambuzi wa AI unaendelea... ⏳", wo: "Jërëjëf lool ! 🙏\nDangu yónnee yépp ci sunu équipe technique.\nIA bi dafay jëfëf... ⏳", bm: "I ni ce kosɛbɛ ! 🙏\nKunnafoni bɛɛ tun ci sunu équipe yɛrɛ.\nIA ka ɲɛfɔ... ⏳", ha: "Na gode sosai! 🙏\nDuk bayanan sun isa ƙungiyarmu.\nBinciken AI yana gudana... ⏳", yo: "Ẹ jẹ́ ká dúpẹ́ gan an! 🙏\nGbogbo àlàyé ti lọ sí ẹgbẹ́ wa.\nÌgbékalẹ̀ AI ń lọ... ⏳", fon: "Akpé tawun! 🙏\nXógbe bǐ sɛ ɖo mɛtɔn lɛ sín nu.\nAI ɔ ɖò azɔ wà... ⏳", dyu: "I ni ce kosɛbɛ ! 🙏\nKunnafoni bɛɛ tun ci sunu équipe yɛrɛ.\nIA ka ɲɛfɔ... ⏳" }
+// ── SITE TYPE MAPPING ─────────────────────────────────────────────────────────
+const SITE_TYPE_MAP = {
+  school: 'school', école: 'school', ecole: 'school', scuola: 'school',
+  shule: 'school', makaranta: 'school', ile_iwe: 'school', kalanso: 'school',
+  health: 'health', santé: 'health', sante: 'health', clinic: 'health',
+  dispensaire: 'health', hopital: 'health', furaso: 'health', clinique: 'health',
+  water: 'water', eau: 'water', pompe: 'water', pump: 'water',
+  ji_pompe: 'water', bomba: 'water', familles: 'community', famille: 'community',
+  homes: 'community', maisons: 'community', residential: 'community',
+  community: 'community', village: 'community', sow: 'community',
+  business: 'business', entreprise: 'business', commerce: 'business'
 };
 
-function t(key, lang) {
-  return (T[key] && (T[key][lang] || T[key]['fr'] || T[key]['en'])) || '';
+function mapSiteType(raw) {
+  if (!raw) return null;
+  const lower = raw.toLowerCase().replace(/[^a-zéèàùâêîôûäëïöü_]/g, '_');
+  for (const [key, val] of Object.entries(SITE_TYPE_MAP)) {
+    if (lower.includes(key)) return val;
+  }
+  // Numeric fallback (ancien format)
+  const num = { '1':'community','2':'school','3':'health','4':'water','5':'business' };
+  return num[raw.trim()] || null;
 }
 
-// ── LANGUAGE DETECTION ───────────────────────────────────────────────────────
-
-// Country code + name mapping
+// ── COUNTRY MAP ───────────────────────────────────────────────────────────────
 const COUNTRY_MAP = {
-  '1':  { code: 'BEN', name: 'Bénin' },
-  '2':  { code: 'SEN', name: 'Sénégal' },
-  '3':  { code: 'MLI', name: 'Mali' },
-  '4':  { code: 'BFA', name: 'Burkina Faso' },
-  '5':  { code: 'GIN', name: 'Guinée' },
-  '6':  { code: 'CIV', name: "Côte d'Ivoire" },
-  '7':  { code: 'NGA', name: 'Nigeria' },
-  '8':  { code: 'GHA', name: 'Ghana' },
-  '9':  { code: 'TZA', name: 'Tanzanie' },
-  '10': { code: 'UGA', name: 'Ouganda' },
-  '11': { code: 'ZMB', name: 'Zambie' },
-  '12': { code: 'AFR', name: 'Autre' }
+  '1':  { code: 'BEN', name: 'Bénin' },    '2':  { code: 'SEN', name: 'Sénégal' },
+  '3':  { code: 'MLI', name: 'Mali' },      '4':  { code: 'BFA', name: 'Burkina Faso' },
+  '5':  { code: 'GIN', name: 'Guinée' },    '6':  { code: 'CIV', name: "Côte d'Ivoire" },
+  '7':  { code: 'NGA', name: 'Nigeria' },   '8':  { code: 'GHA', name: 'Ghana' },
+  '9':  { code: 'TZA', name: 'Tanzanie' },  '10': { code: 'UGA', name: 'Ouganda' },
+  '11': { code: 'ZMB', name: 'Zambie' },    '12': { code: 'AFR', name: 'Autre' }
 };
 
-// ── REVERSE GEOCODING (GPS → commune, pays) ───────────────────────────────────
-// Deduce country from GPS bounding boxes (offline fallback)
+// ── PHOTO SLOTS REQUIS ────────────────────────────────────────────────────────
+const REQUIRED_PHOTOS = [
+  { type: 'inverter_far',      label: 'onduleur — vue générale',     label_en: 'inverter — full view' },
+  { type: 'inverter_brand',    label: 'onduleur — étiquette/marque', label_en: 'inverter — brand label' },
+  { type: 'inverter_screen',   label: 'onduleur — écran/affichage',  label_en: 'inverter — screen/display' },
+  { type: 'batteries_far',     label: 'batteries — vue générale',    label_en: 'batteries — full view' },
+  { type: 'battery_brand',     label: 'batteries — étiquette',       label_en: 'batteries — label' },
+  { type: 'battery_terminals', label: 'batteries — bornes/câbles',   label_en: 'batteries — terminals' },
+  { type: 'tableau',           label: 'tableau électrique',          label_en: 'electrical panel' },
+  { type: 'panels_far',        label: 'panneaux — vue générale',     label_en: 'panels — full view' },
+  { type: 'panel_close',       label: 'panneaux — gros plan',        label_en: 'panels — close-up' },
+];
+
+// ── REVERSE GEOCODING ─────────────────────────────────────────────────────────
 function guessCountryFromCoords(lat, lng) {
   const boxes = [
-    { code:'BEN', name:'Bénin',          lat:[6.2,12.4],   lng:[0.8,3.9]   },
-    { code:'SEN', name:'Sénégal',         lat:[12.3,16.7],  lng:[-17.6,-11.4]},
-    { code:'MLI', name:'Mali',            lat:[10.1,25.0],  lng:[-4.3,4.3]  },
-    { code:'BFA', name:'Burkina Faso',    lat:[9.4,15.1],   lng:[-5.5,2.4]  },
-    { code:'GIN', name:'Guinée',          lat:[7.2,12.7],   lng:[-15.1,-7.6]},
-    { code:'CIV', name:"Côte d'Ivoire",   lat:[4.3,10.7],   lng:[-8.6,-2.5] },
-    { code:'NGA', name:'Nigeria',         lat:[4.3,13.9],   lng:[2.7,14.7]  },
-    { code:'GHA', name:'Ghana',           lat:[4.7,11.2],   lng:[-3.3,1.2]  },
-    { code:'TZA', name:'Tanzanie',        lat:[-11.7,4.7],  lng:[29.3,40.4] },
-    { code:'UGA', name:'Ouganda',         lat:[-1.5,4.2],   lng:[29.5,35.1] },
-    { code:'ZMB', name:'Zambie',          lat:[-18.1,-8.2], lng:[21.9,33.7] },
+    { code:'BEN', name:'Bénin',         latMin:6.2,  latMax:12.4, lngMin:0.8,   lngMax:3.9  },
+    { code:'SEN', name:'Sénégal',       latMin:12.3, latMax:16.7, lngMin:-17.6, lngMax:-11.4},
+    { code:'MLI', name:'Mali',          latMin:10.1, latMax:25.0, lngMin:-12.2, lngMax:4.3  },
+    { code:'BFA', name:'Burkina Faso',  latMin:9.4,  latMax:15.1, lngMin:-5.5,  lngMax:2.4  },
+    { code:'GIN', name:'Guinée',        latMin:7.2,  latMax:12.7, lngMin:-15.1, lngMax:-7.7 },
+    { code:'CIV', name:"Côte d'Ivoire",latMin:4.3,  latMax:10.7, lngMin:-8.6,  lngMax:-2.5 },
+    { code:'NGA', name:'Nigeria',       latMin:4.3,  latMax:13.9, lngMin:2.7,   lngMax:14.7 },
+    { code:'GHA', name:'Ghana',         latMin:4.7,  latMax:11.2, lngMin:-3.3,  lngMax:1.2  },
+    { code:'TZA', name:'Tanzanie',      latMin:-11.7,latMax:-1.0, lngMin:29.3,  lngMax:40.5 },
+    { code:'UGA', name:'Ouganda',       latMin:-1.5, latMax:4.2,  lngMin:29.6,  lngMax:35.0 },
+    { code:'ZMB', name:'Zambie',        latMin:-18.1,latMax:-8.2, lngMin:22.0,  lngMax:33.7 },
   ];
-  for (const b of boxes) {
-    if (lat >= b.lat[0] && lat <= b.lat[1] && lng >= b.lng[0] && lng <= b.lng[1]) {
-      return { code3: b.code, name: b.name };
-    }
-  }
-  return null;
+  return boxes.find(b => lat >= b.latMin && lat <= b.latMax && lng >= b.lngMin && lng <= b.lngMax) || null;
 }
 
 async function reverseGeocode(lat, lng) {
-  const iso2map = {
-    'BJ':'BEN','SN':'SEN','ML':'MLI','BF':'BFA','GN':'GIN',
-    'CI':'CIV','NG':'NGA','GH':'GHA','TZ':'TZA','UG':'UGA','ZM':'ZMB'
-  };
-
-  // Try Nominatim with 2 attempts (rate limit workaround)
-  for (let i = 0; i < 2; i++) {
+  const urls = [
+    `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=10`,
+    `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=8`,
+  ];
+  for (const url of urls) {
     try {
-      if (i > 0) await new Promise(r => setTimeout(r, 1500)); // wait 1.5s before retry
-      const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=10&addressdetails=1&accept-language=fr`;
-      const r = await fetch(url, {
-        headers: {
-          'User-Agent': 'Lumoki/1.0 contact@lumoki.africa',
-          'Accept': 'application/json'
-        }
-      });
-      const text = await r.text();
-      if (text.trim().startsWith('<')) throw new Error('Got XML instead of JSON');
-      const data = JSON.parse(text);
-      const addr = data.address || {};
-      const commune = addr.municipality || addr.town || addr.city || addr.village || addr.county || addr.suburb || '';
-      const country = addr.country || '';
-      const countryCode = (addr.country_code || '').toUpperCase();
-      if (commune) {
-        const code3 = iso2map[countryCode] || 'AFR';
-        console.log('Geocode OK (Nominatim):', commune, country, code3);
-        return { commune, country, code3 };
+      const r = await fetch(url, { headers: { 'User-Agent': 'Lumoki/1.0 contact@lumoki.africa' }, signal: AbortSignal.timeout(6000) });
+      const d = await r.json();
+      if (d?.address) {
+        const commune = d.address.village || d.address.town || d.address.city || d.address.county || d.address.state_district || '';
+        const country = d.address.country || '';
+        const cc      = d.address.country_code?.toUpperCase() || '';
+        if (commune || country) return { commune, country, country_code: cc };
       }
-    } catch(e) {
-      console.error(`Nominatim attempt ${i+1} failed:`, e.message);
-    }
+    } catch(e) { /* try next */ }
   }
-
-  // Offline fallback — deduce country from bounding boxes, no commune
   const guess = guessCountryFromCoords(lat, lng);
-  if (guess) {
-    console.log('Geocode fallback (bounding box):', guess.name);
-    return { commune: `${lat.toFixed(3)}, ${lng.toFixed(3)}`, country: guess.name, code3: guess.code };
-  }
-
-  // Last resort: return coords as commune with unknown country
-  // Caller will handle null by going to manual flow
+  if (guess) return { commune: '', country: guess.name, country_code: guess.code };
   console.error('All geocode attempts failed — GPS stored, going manual');
   return null;
 }
 
-async function detectLanguage(text) {
-  try {
-    const res = await ai.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 10,
-      messages: [{ role: 'user', content: `Language code only (fr/en/wo/bm/sw/ha/yo/fon/dyu) for: "${text}"` }]
-    });
-    return res.content[0].text.trim().toLowerCase().slice(0, 3);
-  } catch(e) { return 'fr'; }
-}
-
-// ── UPLOAD PHOTO ─────────────────────────────────────────────────────────────
-async function uploadPhoto(mediaUrl, convId, type) {
-  try {
-    const auth    = 'Basic ' + Buffer.from(`${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`).toString('base64');
-    const r       = await fetch(mediaUrl, { headers: { Authorization: auth } });
-    const buf     = await r.buffer();
-    const rawMime = r.headers.get('content-type') || 'image/jpeg';
-    // Normalize to supported types — iPhone sends image/heic etc.
-    const mimeType = rawMime.includes('png') ? 'image/png' :
-                     rawMime.includes('gif') ? 'image/gif' :
-                     rawMime.includes('webp') ? 'image/webp' : 'image/jpeg';
-    const ext = mimeType.includes('png') ? 'png' : 'jpg';
-    const path    = `conv-${convId}/${type}_${Date.now()}.${ext}`;
-    const { error } = await db.storage.from('site-photos').upload(path, buf, { contentType: mimeType, upsert: true });
-    if (error) throw error;
-    const publicUrl = db.storage.from('site-photos').getPublicUrl(path).data.publicUrl;
-    // Return both URL and base64 for Claude Vision
-    return { url: publicUrl, base64: buf.toString('base64'), mimeType };
-  } catch(e) { console.error('Upload error:', e); return null; }
-}
-
-// ── ANALYZE PHOTO WITH CLAUDE VISION ─────────────────────────────────────────
-async function analyzePhoto(url, context) {
-  try {
-    const res = await ai.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 400,
-      messages: [{ role: 'user', content: [
-        { type: 'image', source: { type: 'url', url } },
-        { type: 'text',  text: `Solar installation photo context: "${context}". Extract visible brand, model, numbers, count units, damage, corrosion, error codes. JSON only: {"observations":"","extracted_data":{},"anomalies":[],"confidence":0}` }
-      ]}]
-    });
-    return JSON.parse(res.content[0].text.replace(/```json|```/g,'').trim());
-  } catch(e) { return { observations: 'Analysis failed', extracted_data: {}, anomalies: [], confidence: 0 }; }
-}
-
-// ── NEAREST CITY (>150k hab) ──────────────────────────────────────────────────
+// ── FIND NEAREST CITY ─────────────────────────────────────────────────────────
 function haversineKm(lat1, lng1, lat2, lng2) {
   const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -333,26 +126,150 @@ async function findNearestCity(lat, lng) {
   try {
     const { data: cities, error } = await db.from('cities').select('city_name, lat, lng');
     if (error || !cities?.length) return null;
-    let nearest = null;
-    let minDist = Infinity;
+    let nearest = null, minDist = Infinity;
     for (const c of cities) {
       const d = haversineKm(lat, lng, c.lat, c.lng);
       if (d < minDist) { minDist = d; nearest = c; }
     }
     return nearest ? { name: nearest.city_name, distance_km: Math.round(minDist) } : null;
+  } catch(e) { console.error('findNearestCity error:', e.message); return null; }
+}
+
+// ── UPLOAD PHOTO ─────────────────────────────────────────────────────────────
+async function uploadPhoto(mediaUrl, convId, type) {
+  try {
+    const auth    = 'Basic ' + Buffer.from(`${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`).toString('base64');
+    const r       = await fetch(mediaUrl, { headers: { Authorization: auth } });
+    const buf     = await r.buffer();
+    const rawMime = r.headers.get('content-type') || 'image/jpeg';
+    const mimeType = rawMime.includes('png') ? 'image/png' :
+                     rawMime.includes('gif') ? 'image/gif' :
+                     rawMime.includes('webp') ? 'image/webp' : 'image/jpeg';
+    const ext  = mimeType.includes('png') ? 'png' : 'jpg';
+    const path = `conv-${convId}/${type}_${Date.now()}.${ext}`;
+    const { error } = await db.storage.from('site-photos').upload(path, buf, { contentType: mimeType, upsert: true });
+    if (error) throw error;
+    const publicUrl = db.storage.from('site-photos').getPublicUrl(path).data.publicUrl;
+    return { url: publicUrl, base64: buf.toString('base64'), mimeType };
+  } catch(e) { console.error('Upload error:', e); return null; }
+}
+
+// ── DETECT LANGUAGE ───────────────────────────────────────────────────────────
+async function detectLanguage(text) {
+  try {
+    const res = await ai.messages.create({
+      model: 'claude-haiku-4-5-20251001', max_tokens: 10,
+      messages: [{ role: 'user', content: `Language code only (fr/en/wo/bm/sw/ha/yo/fon/dyu) for: "${text}"` }]
+    });
+    return res.content[0].text.trim().toLowerCase().slice(0, 3);
+  } catch(e) { return 'fr'; }
+}
+
+// ── SEND WHATSAPP ─────────────────────────────────────────────────────────────
+async function send(to, body, mediaUrl = null) {
+  const from = process.env.TWILIO_WHATSAPP_NUMBER.startsWith('whatsapp:')
+    ? process.env.TWILIO_WHATSAPP_NUMBER
+    : `whatsapp:${process.env.TWILIO_WHATSAPP_NUMBER}`;
+  const params = { from, to: `whatsapp:${to}`, body };
+  if (mediaUrl) params.mediaUrl = [mediaUrl];
+  await twilioCli.messages.create(params);
+}
+
+// ── HAIKU COLLECTION ENGINE ───────────────────────────────────────────────────
+// Returns { reply, updates, location_confirmed, ready }
+async function runHaiku(state, userMessage, lang, photos, hasGps, gpsLat, gpsLng) {
+
+  const photosSummary = (state.photos || []).map(p =>
+    `[${p.type}] ${p.analysis?.observations?.slice(0,80) || 'uploaded'}`
+  ).join('\n') || 'none yet';
+
+  const missingPhotos = REQUIRED_PHOTOS
+    .filter(r => !(state.photos || []).find(p => p.type === r.type))
+    .map(r => lang === 'en' ? r.label_en : r.label);
+
+  const newPhotosCount = photos.length;
+
+  const systemPrompt = `You are Lumoki's WhatsApp assistant collecting data about a broken off-grid solar installation in Sub-Saharan Africa.
+
+CURRENT COLLECTED DATA:
+- lang: ${lang}
+- lat/lng: ${state.lat || 'missing'} / ${state.lng || 'missing'}
+- location_confirmed: ${state.location_confirmed || false}
+- village: ${state.village || 'missing'}
+- country_name: ${state.country_name || 'missing'}
+- site_type: ${state.site_type || 'missing'}  (must be one of: school/health/community/water/business)
+- people_count: ${state.people_count || 'missing'}
+- offline_duration: ${state.offline_duration || 'missing'}
+- symptom: ${state.symptom || 'missing'}
+- recent_event: ${state.recent_event || 'missing'}
+- contact: ${state.contact || 'missing'}
+- photos collected: ${(state.photos||[]).length}/9 required
+${photosSummary !== 'none yet' ? `\nPHOTOS SO FAR:\n${photosSummary}` : ''}
+${missingPhotos.length > 0 ? `\nMISSING PHOTOS: ${missingPhotos.join(', ')}` : '\nAll 9 photos received!'}
+${newPhotosCount > 0 ? `\nUSER JUST SENT ${newPhotosCount} NEW PHOTO(S) — acknowledge them.` : ''}
+${hasGps ? `\nUSER JUST SHARED GPS: ${gpsLat}, ${gpsLng} — it has been saved automatically.` : ''}
+
+RULES:
+1. Respond in the user's language (${lang}). If unknown language detected, adapt.
+2. Be warm, concise, WhatsApp-style (no long lists).
+3. Never re-ask something already collected.
+4. Accept free-text answers — interpret intelligently. "since the storm last week" = recent_event storm.
+5. For location: after GPS or village entry, ALWAYS confirm: "I found [village, country] — is that correct?" Wait for yes/no before setting location_confirmed=true.
+6. For site_type: interpret freely but map to exactly one of: school/health/community/water/business.
+7. Photos: accept batches. After receiving photos, tell user what you received and what's still missing.
+8. When all 7 text fields collected AND 9 photos received AND location confirmed: set ready=true and say you're launching analysis.
+9. TEST mode: if user sends "TEST", fill missing fields with defaults and set ready=true.
+10. Never mention "JSON" or internal field names to the user.
+
+PHOTO GUIDANCE (ask in this order if missing):
+1. Inverter full view  2. Inverter brand label  3. Inverter screen
+4. Batteries full view  5. Battery label  6. Battery terminals
+7. Electrical panel  8. Solar panels full view  9. Panel close-up
+
+RESPOND ONLY with valid JSON (no markdown):
+{
+  "reply": "your WhatsApp message to the user",
+  "updates": {
+    "village": null,
+    "country_name": null,
+    "country_code": null,
+    "site_type": null,
+    "people_count": null,
+    "offline_duration": null,
+    "symptom": null,
+    "recent_event": null,
+    "contact": null,
+    "location_confirmed": null
+  },
+  "ready": false
+}
+Only include fields in "updates" that changed. Null fields are ignored.`;
+
+  const userContent = userMessage || (newPhotosCount > 0 ? `[sent ${newPhotosCount} photo(s)]` : '[no message]');
+
+  try {
+    const res = await ai.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 600,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userContent }]
+    });
+    const raw = res.content[0].text.replace(/```json|```/g, '').trim();
+    return JSON.parse(raw);
   } catch(e) {
-    console.error('findNearestCity error:', e.message);
-    return null;
+    console.error('Haiku error:', e.message);
+    return { reply: lang === 'en'
+      ? "Sorry, I had a technical issue. Could you repeat that?"
+      : "Désolé, j'ai eu un problème technique. Pouvez-vous répéter ?",
+      updates: {}, ready: false };
   }
 }
 
-// ── GENERATE FINAL DIAGNOSTIC ─────────────────────────────────────────────────
+// ── GENERATE DIAGNOSTIC (Claude Opus) ────────────────────────────────────────
 async function generateDiagnostic(state, lang) {
-  // Build image blocks for Claude Vision — send actual photos
   const imageBlocks = [];
   for (const p of (state.photos || [])) {
     if (p.base64 && p.mimeType) {
-      // Claude only supports jpeg/png/gif/webp — normalize everything else to jpeg
       const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
       const safeMime = allowedTypes.includes(p.mimeType) ? p.mimeType : 'image/jpeg';
       imageBlocks.push({ type: 'text', text: `Photo type: ${p.type} | Pre-analysis: ${p.analysis?.observations || 'none'}` });
@@ -361,212 +278,154 @@ async function generateDiagnostic(state, lang) {
       imageBlocks.push({ type: 'text', text: `[${p.type}] ${p.analysis.observations}` });
     }
   }
-  const photos = (state.photos || []).map(p => `[${p.type}] ${p.analysis?.observations || ''}`).join('\n');
+
   const langName = { fr:'French', en:'English', wo:'Wolof', bm:'Bambara', sw:'Swahili', ha:'Hausa', yo:'Yoruba', fon:'Fon', dyu:'Dioula' }[lang] || 'French';
 
-  // Map numeric answers to readable text
-  const siteTypeMap = {'1':'Homes/families','2':'School','3':'Health clinic','4':'Water pump','5':'Other'};
-  const symptomMap  = {'1':'Nothing works at all','2':'Works during day but not at night','3':'Cuts off frequently','4':'Weak light, appliances work poorly','5':'Strange smell or heat','6':'Main box shows error'};
-  const eventMap    = {'1':'Storm or lightning strike','2':'Flooding','3':'Someone modified the installation','4':'Nothing particular happened recently'};
-
-  const siteTypeText     = siteTypeMap[state.site_type]     || state.site_type     || 'Unknown';
-  const symptomText      = symptomMap[state.symptom]        || state.symptom        || 'Unknown';
-  const recentEventText  = eventMap[state.recent_event]     || state.recent_event   || 'Unknown';
-
-  // Cost context — nearest city + travel
   const cityData = await findNearestCity(state.lat, state.lng);
-  const nearestCity   = cityData?.name        || 'nearest major city';
-  const distanceKm    = cityData?.distance_km ?? 100;
-  // Distance vol d'oiseau × 2 (correction route SSA) × 2 A/R (diagnostic + réparation)
-  const roadDistanceKm = distanceKm * 2;           // vol d'oiseau → route
-  const travelCost    = parseFloat((roadDistanceKm * 2 * 0.30).toFixed(2)); // 2 A/R
+  const nearestCity    = cityData?.name || 'nearest major city';
+  const distanceKm     = cityData?.distance_km ?? 100;
+  const roadDistanceKm = distanceKm * 2;
+  const travelCost     = parseFloat((roadDistanceKm * 2 * 0.30).toFixed(2));
+
   const costContextBlock = `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 COST ESTIMATION CONTEXT:
-Use these rates to compute total_cost_est in the JSON output.
-
   Labour rate:       €5.00 per hour
-  Easy Kit IoT:      €100.00 — add to EVERY repair, no exception
+  Easy Kit IoT:      €100.00 — add to EVERY repair
   Nearest city:      ${nearestCity}
   Distance (road estimate): ${distanceKm} km x 2 (road factor) = ${roadDistanceKm} km
-  Travel (2 trips):         ${roadDistanceKm} km x 2 x €0.30/km = €${travelCost}
-  Community time:           3h fixed (presentation, training, handover)
+  Travel (2 trips):  ${roadDistanceKm} km x 2 x €0.30/km = €${travelCost}
+  Community time:    3h fixed (presentation, training, handover)
 
 Formula:
   total_cost_est = sum(parts_needed[].est_cost_eur x qty) + ((labor_hours + 3) x 5) + ${travelCost} + 100
 
 Estimate labor_hours for TECHNICAL work only (community 3h added automatically):
-  Config fix only:        0.5h
-  Single component swap:  1-2h
-  Multi-component repair: 3-5h
-  Full bank replacement:  4-6h
-  Wiring overhaul:        6-8h
+  Config fix: 0.5h | Single swap: 1-2h | Multi-component: 3-5h | Full bank: 4-6h | Wiring: 6-8h
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+
+  const faultBibleBlock = `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SSA FAULT BIBLE v1.0 — 50 most common off-grid faults
+Return fault_primary, fault_secondary, fault_tertiary using these IDs when possible.
+
+### INV — Inverter faults
+INV-01|BUS voltage high|urgency:4|cause:PV over-voltage morning surge|action:Check PV Voc vs inverter max; replace MOSFET if blown
+INV-02|BUS voltage low/no DC|urgency:3|cause:Battery discharged, blown fuse, corroded lug|action:Measure battery V, inspect DC fuse and lugs
+INV-03|AC output over-voltage|urgency:4|cause:Faulty transformer tap, overloaded neutral|action:Measure AC output; adjust tap or replace filter
+INV-04|AC output under-voltage|urgency:3|cause:Battery SOC low, overloaded circuit|action:Reduce load, check lug tightness, verify battery health
+INV-05|Overload/output short|urgency:5|cause:Load exceeds rated VA, shorted AC wire|action:Disconnect loads one by one; inspect AC wiring
+INV-06|Inverter overtemperature|urgency:4|cause:Blocked vent, failed fan, ambient>45C|action:Clean vents, replace fan, add ventilation
+INV-07|Ground fault/isolation|urgency:5|cause:Degraded PV cable insulation, water ingress|action:Disconnect strings, megger test, inspect junction boxes
+INV-08|MPPT fault/PV input error|urgency:3|cause:Faulty MPPT board, reverse polarity|action:Check polarity and Voc; replace MPPT if needed
+INV-09|Communication/display failure|urgency:2|cause:Failed display PCB, firmware crash|action:Power-cycle; check ribbon cable; reflash firmware
+INV-10|Charger not switching to grid|urgency:2|cause:ATS relay failed, wrong priority setting|action:Check ATS relay, verify AC input breaker
+
+### BAT — Battery faults
+BAT-01|Deep discharge/0V cell|urgency:5|cause:Extended outage, system unattended months|action:Slow-charge 0.1C for 4h; measure cells; replace if needed
+BAT-02|Sulfation|urgency:3|cause:Chronic partial SOC, electrolyte loss|action:Equalization 2.35V/cell 2h; distilled water top-up
+BAT-03|Over-voltage/gassing|urgency:4|cause:Charge voltage too high, failed regulator|action:Reduce charge voltage immediately; ventilate
+BAT-04|Cell imbalance LiFePO4|urgency:4|cause:Manufacturing variance, failed balancer|action:Top-balance at 3.65V; replace balancer or weak cell
+BAT-05|BMS communication lost|urgency:3|cause:Broken CANbus cable, firmware crash|action:Check cable continuity; verify protocol setting; power-cycle
+BAT-06|Terminal corrosion|urgency:3|cause:Moisture, poor crimp, dissimilar metals|action:Clean with baking soda; re-crimp lugs; apply terminal grease
+BAT-07|Capacity degradation>50%|urgency:3|cause:Age + chronic partial discharge|action:Full capacity test; replace if <60% rated
+BAT-08|Wrong battery type setting|urgency:2|cause:AGM profile on flooded battery|action:Correct battery type in inverter menu
+
+### PV — PV array faults
+PV-01|String open-circuit|urgency:3|cause:MC4 UV degradation, rodent damage|action:Inspect cable run; replace MC4 connectors
+PV-02|Panel hotspot/shading|urgency:2|cause:Partial shading, cell crack, failed bypass diode|action:Clean; trim vegetation; check bypass diode
+PV-03|String reverse polarity|urgency:4|cause:Installation error|action:Disconnect; measure polarity; swap MC4
+PV-04|Junction box water ingress|urgency:3|cause:Broken IP seal|action:Dry; treat with corrosion inhibitor; reseal
+PV-05|Panel soiling/dust|urgency:1|cause:Dry season accumulation|action:Clean with soft brush and water
+PV-06|String Voc exceeds inverter max|urgency:5|cause:Too many panels in series|action:Disconnect PV; remove panel per string; replace MPPT
+PV-07|Broken panel glass|urgency:2|cause:Hail, falling branch, vandalism|action:Monitor if no moisture; replace if delamination
+
+### WIR — Wiring faults
+WIR-01|Undersized DC cable|urgency:3|cause:Wrong gauge installed|action:Measure voltage drop under load; replace cable
+WIR-02|Corroded DC busbar|urgency:4|cause:Moisture + copper oxidation|action:Sand; anti-oxidant paste; re-torque connections
+WIR-03|Blown DC fuse|urgency:3|cause:Overload, short circuit, age|action:Fix overcurrent cause first; replace fuse
+WIR-04|Neutral/earth fault AC|urgency:5|cause:Incorrect installation|action:Full AC wiring audit; correct N-PE bridge
+WIR-05|Loose AC output terminal|urgency:4|cause:Vibration, thermal cycling|action:Power off; tighten all AC terminals to spec
+WIR-06|Wrong breaker sizing|urgency:3|cause:Load grew after install|action:Audit load currents; upsize breakers
+WIR-07|PV earthing missing|urgency:3|cause:Installation skip|action:Install earth wire from frames to ground rod
+
+### ENV — Environment faults
+ENV-01|Inverter outdoors exposed|urgency:4|cause:No weatherproof cabinet|action:Relocate; dry PCB; apply conformal coating
+ENV-02|Batteries unventilated|urgency:5|cause:Design oversight|action:IMMEDIATE: ventilate. Install 2 vent openings
+ENV-03|Panels wrong angle|urgency:2|cause:Flat mounting|action:Adjust to latitude angle; clean
+ENV-04|Room ambient>45C|urgency:3|cause:Equipment in hot room|action:Insulated ceiling; white roof; exhaust fan
+ENV-05|Panels shaded|urgency:2|cause:Tree growth, building extension|action:Trim vegetation; reconfigure layout
+ENV-06|Rodent cable damage|urgency:4|cause:No conduit protection|action:Replace cables; install armored conduit
+ENV-07|Theft of cables/panels|urgency:5|cause:Unprotected site|action:Replace; install anti-theft clamps
+
+### SYS — Configuration faults
+SYS-01|Wrong output voltage|urgency:3|cause:Factory default not adjusted|action:Set 230V in inverter menu
+SYS-02|Wrong output frequency|urgency:3|cause:Factory 60Hz in 50Hz country|action:Set 50Hz in inverter menu
+SYS-03|Low battery cutoff too low|urgency:3|cause:Default not adjusted|action:Set LVC 11.5V (12V) or 23V (24V)
+SYS-04|Charger current too high|urgency:4|cause:Default 60A regardless of bank|action:Set max charge 0.1-0.2C of Ah rating
+SYS-05|Wrong priority mode|urgency:2|cause:Default grid-first|action:Switch to Solar-first/SBU mode
+SYS-06|No equalization schedule|urgency:2|cause:Never activated|action:Enable monthly; Veq 2.4V/cell
+SYS-07|Generator start misconfigured|urgency:2|cause:Default not site-specific|action:health=50%SOC; school=30%; residential=20%
+SYS-08|MPPT mismatch with array|urgency:2|cause:Panels added without upgrading inverter|action:Add second MPPT; verify Isc < max current
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
 
   const res = await ai.messages.create({
     model: 'claude-opus-4-5',
-    max_tokens: 2000,
-    messages: [{ role: 'user', content: [
-      ...imageBlocks,
-      { type: 'text', text: `You are an expert solar energy diagnostic AI for off-grid installations in Sub-Saharan Africa.
-
-CRITICAL: If any photo shows an inverter/charge controller screen, READ THE EXACT ERROR CODE displayed. Error codes are the most important diagnostic signal.
-
-INVERTER ERROR CODE REFERENCE:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-VICTRON (MultiPlus, EasySolar, Phoenix):
-- #1 BMS cable - BMS cable lost, check cable connection
-- #2 Low SOC - Battery discharged below minimum
-- #17/#18/#19 Overvoltage AC - AC output overvoltage
-- #20 Low battery - Low battery voltage shutdown
-- #22 Internal temp - Overheating, check ventilation
-- #26 Inverter overload - Load exceeds inverter capacity
-- #38/#39 Input shutdown - Battery voltage too low
-
-GROWATT (SPF, MIN, MID, MAC series):
-- E01 Fan failure - Cooling fan broken or blocked
-- E02 Overtemperature - Check ventilation clearance
-- E03 Battery voltage high - Battery overvoltage
-- E04 Battery voltage low - Deep discharge
-- E05 PV overvoltage - Too many panels in series
-- E06 AC output short - Short circuit in load wiring
-- E08 Bus overvoltage - Internal DC bus issue
-- F01/F02/F03 - Grid fault, frequency/voltage out of range
-- OFF Grid mode - Normal if intentional
-
-DEYE (SUN-xK series):
-- F01 Grid overvoltage - Grid voltage too high
-- F02 Grid undervoltage - Grid voltage too low
-- F03 Grid overfrequency / F04 Underfrequency
-- F05 Grid voltage imbalance
-- F11 Bus voltage high - DC bus overvoltage
-- F23 Battery overvoltage - Check charge settings
-- F24 Battery undervoltage - Battery deeply discharged
-- F26 Battery overtemperature - Check battery area ventilation
-- F55 Grid relay fault - Internal relay failure
-- W001-W099 Warnings (non-critical)
-
-SUNGROW (SG, SH series):
-- 010 Grid overvoltage / 011 Grid undervoltage
-- 012 Grid overfrequency / 013 Grid underfrequency
-- 016 No grid / 018 Grid loss
-- 030 Overtemperature
-- 051 Insulation resistance low - Check panel wiring for ground fault
-- 052 GFCI fault - Ground fault, check all PV wiring
-- 071 PV overvoltage
-- 080 Battery communication lost
-- 401 Battery discharge overcurrent
-
-VOLTRONIC / AXPERT (very common in West Africa):
-- 01 Fan locked / 02 Overtemperature
-- 03 Battery voltage too high / 04 Battery voltage too low
-- 05 Output short / 06 Output voltage too high
-- 07 Overload timeout / 08 Bus voltage too high
-- 09 Bus soft start fail / 10/11 DC offset
-- 51 Overload by inverter / 52 Overload by battery
-- Warning 20: Load limit reached
-- Warning 21: Battery capacity warning
-
-SMA (Sunny Boy, Sunny Island):
-- Disturbance Vac-Bfr: AC voltage out of range, check grid connection
-- Disturbance f: Grid frequency fault
-- SSD (Shutdown): Normal shutdown
-- Insulation failure: Ground fault in PV array
-- Fan failure: Replace cooling fan
-- Overtemperature: Check ventilation
-
-STUDER (Xtender, VarioTrack):
-- Error 1-5: Battery connection issues
-- Error 6: Overload
-- Error 8: Overtemperature
-- Error 32: Short circuit
-- bLd: Battery low discharge
-
-SCHNEIDER (XW+, Conext):
-- F1 AC over/undervoltage
-- F2 AC overfrequency
-- F11 Overtemperature
-- F51 Battery overvoltage / F52 Undervoltage
-- F63 Ground fault
-
-LUMINOUS (common India/West Africa):
-- E01 Overload / E02 Deep discharge
-- E03 Short circuit / E04 Battery reverse
-- ERR Battery temp high
-
-HUAWEI (SUN2000):
-- 2001: Grid overvoltage / 2002: Grid undervoltage
-- 2011: Grid overfrequency
-- 2021: Insulation resistance low → ground fault
-- 2031: AFCI arc fault → check panel connectors
-- 2061: Overtemperature
-- E012-E014: Communication error with battery
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
+    max_tokens: 4000,
+    system: `You are an expert solar diagnostic AI for Lumoki. Analyze the photos and data to produce a structured JSON diagnostic report. Respond ONLY with valid JSON.`,
+    messages: [{
+      role: 'user',
+      content: [
+        ...imageBlocks,
+        { type: 'text', text: `
 COMMON BATTERY FAILURE SIGNATURES (60% of cases in SSA):
-- Works day not night → sulfated or dead cells, capacity < 20%
-- Frequent cutoffs → one or more bad cells, internal resistance high
-- Swollen battery → overcharge, gassing, replace immediately
-- White powder on terminals → sulfation/corrosion, clean + test voltage
-- Voltage OK but no power → dead cell(s), test each battery individually
+- Sulfated lead-acid: white crust on terminals, low SG, rapid discharge
+- Deep discharge: voltage <10.5V (12V system) or <21V (24V system)
+- Cell failure: one cell reads 0V or <1V when others normal
+
+${faultBibleBlock}
 
 ${costContextBlock}
 
 SITE REPORT:
 - Location: ${state.village || state.location}, ${state.country_name || ''}
-- Site type: ${siteTypeText}
+- GPS: ${state.lat ? `${state.lat}, ${state.lng}` : 'not available'}
+- Site type: ${state.site_type}
 - People served: ${state.people_count}
 - Offline since: ${state.offline_duration}
-- Main symptom: ${symptomText}
-- Recent event: ${recentEventText}
+- Symptom: ${state.symptom}
+- Recent event: ${state.recent_event}
 - Reporter: ${state.contact}
 
-PHOTO ANALYSES (pre-extracted):
-${photos}
-
-INSTRUCTIONS:
-1. FIRST examine all photos carefully for any visible error codes, damage, corrosion
-2. If you see an error code on screen, identify it using the reference above
-3. Count batteries in the far shot — estimate total capacity in kWh from count × Ah × V
-4. Read brand/model from label photos — estimate inverter kVA from model number (field: kva_estimated)
-5. Count batteries, read Ah and voltage — compute kWh = count × Ah × V / 1000 (field: kwh_estimated)
-6. Count solar panels, estimate wattage per panel — compute kWp total = count × Wp / 1000 (field: kwp_estimated)
-7. Note any corrosion, swelling, burn marks, loose cables
-8. Always provide kva/kwh/kwp estimates even if approximate — use typical SSA off-grid sizing if labels unreadable
-
-Generate diagnostic JSON (respond ONLY with valid JSON, no markdown):
+Return ONLY this JSON structure (no markdown):
 {
   "inverter_brand":"","inverter_model":"","inverter_error_code":"",
-  "kva_estimated":null,
-  "battery_brand":"","battery_count":null,"battery_ah":null,"battery_voltage":null,"battery_tech":"",
-  "kwh_estimated":null,
-  "panel_count":null,"panel_wp_per_panel":null,
-  "kwp_estimated":null,
+  "kva_estimated":0,"battery_brand":"","battery_tech":"","battery_count":0,
+  "battery_ah":0,"battery_voltage":0,"kwh_estimated":0,
+  "panel_count":0,"kwp_estimated":0,
   "fault_primary":"","fault_secondary":"","fault_tertiary":"",
-  "confidence":0,"urgency":1,
+  "urgency":3,"confidence":85,
   "parts_needed":[{"name":"","qty":1,"est_cost_eur":0}],
   "labor_hours":0,"total_cost_est":0,"days_offline":0,
-  "ai_report":"detailed narrative in ${langName} — mention exact error code if visible",
+  "ai_report":"detailed narrative in ${langName}",
   "ai_instructions":"step-by-step technician actions in ${langName}, starting with error code resolution if applicable"
 }` }
-    ]}]
+      ]
+    }]
   });
 
   const diag = JSON.parse(res.content[0].text.replace(/```json|```/g,'').trim());
 
-  // Recalcul serveur — source de vérité unique pour total_cost_est
-  const laborH       = parseFloat(diag.labor_hours) || 0;
-  const communityH   = 3;  // heures fixes : présentation Lumoki, formation référent, remise en service
-  const totalLaborH  = laborH + communityH;
-  const partsCost    = (diag.parts_needed || []).reduce((s, p) => s + ((p.est_cost_eur || 0) * (p.qty || 1)), 0);
-  const laborCost    = parseFloat((totalLaborH * 5).toFixed(2));
-  const iotCost      = 100;
-  const totalCost    = parseFloat((partsCost + laborCost + travelCost + iotCost).toFixed(2));
+  // Server-side cost calculation — single source of truth
+  const laborH      = parseFloat(diag.labor_hours) || 0;
+  const communityH  = 3;
+  const totalLaborH = laborH + communityH;
+  const partsCost   = (diag.parts_needed || []).reduce((s, p) => s + ((p.est_cost_eur || 0) * (p.qty || 1)), 0);
+  const laborCost   = parseFloat((totalLaborH * 5).toFixed(2));
+  const iotCost     = 100;
+  const totalCost   = parseFloat((partsCost + laborCost + travelCost + iotCost).toFixed(2));
 
-  // Écraser le total_cost_est de Claude par le calcul serveur
   diag.total_cost_est = totalCost;
-
   diag._cost_meta = {
     nearest_city:      nearestCity,
     distance_km:       distanceKm,
@@ -584,85 +443,69 @@ Generate diagnostic JSON (respond ONLY with valid JSON, no markdown):
   return diag;
 }
 
-// ── NOTIFICATION EMAIL ────────────────────────────────────────────────────────
+// ── NOTIFY TEAM (email Resend) ────────────────────────────────────────────────
 async function notifyTeam(siteId, diagnostic, state) {
-  const urg = ['','🟢','🟡','🟠','🔴','🚨'][diagnostic.urgency] || '⚪';
+  const urg  = ['','🟢','🟡','🟠','🔴','🚨'][diagnostic.urgency] || '⚪';
   const lieu = [state.village, state.country_name].filter(Boolean).join(', ') || state.location || 'Non renseigné';
-  const siteTypeLabel = {'1':'Maisons/familles','2':'École','3':'Dispensaire/santé','4':'Pompe à eau','5':'Autre'}[state.site_type] || '—';
-  const durationLabel = {'1':'< 1 jour','2':'< 1 semaine','3':'< 1 mois','4':'< 1 an','5':'> 1 an'}[state.offline_duration] || state.offline_duration || '—';
-  const symptomLabel = {'1':'Rien ne s\'allume','2':'Jour OK, nuit KO','3':'Coupures fréquentes','4':'Lumière faible','5':'Odeur/chaleur','6':'Erreur affichée'}[state.symptom] || state.symptom || '—';
-  const eventLabel = {'1':'Orage/foudre','2':'Inondation','3':'Installation modifiée','4':'Rien de particulier'}[state.recent_event] || state.recent_event || '—';
-
-  // Build parts list
-  const partsList = (diagnostic.parts_needed || []).map(p =>
-    `<li>${p.qty}× ${p.name} — ~€${p.est_cost_eur}</li>`
-  ).join('') || '<li>À déterminer</li>';
-
-  // Build ai_instructions as bullet list
-  const instrList = (diagnostic.ai_instructions || '')
-    .split(/\n|(?=\d+\.)/)
-    .map(s => s.trim())
-    .filter(s => s.length > 3)
-    .map(s => `<li>${s.replace(/^\d+\.\s*/,'')}</li>`)
-    .join('');
+  const siteTypeLabel = { school:'École', health:'Dispensaire/santé', community:'Maisons/familles', water:'Pompe à eau', business:'Entreprise' }[state.site_type] || state.site_type || '—';
+  const m = diagnostic._cost_meta || {};
 
   await resend.emails.send({
     from: 'Lumoki Bot <bot@lumoki.africa>',
-    to:   process.env.NOTIFY_EMAIL,
-    subject: `${urg} [${siteId}] ${lieu} — Urgence ${diagnostic.urgency}/5`,
-    html: `
-<div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;">
-
-  <div style="background:#1C1009;padding:20px 24px;border-radius:8px 8px 0 0;">
-    <h1 style="color:#F59E0B;margin:0;font-size:22px;">🌞 Lumoki — Nouveau site signalé</h1>
-    <p style="color:#9A8070;margin:4px 0 0;font-size:13px;">${siteId} · ${new Date().toLocaleDateString('fr-BE')}</p>
+    to:   ['fabien.leterrier.pro@gmail.com'],
+    subject: `${urg} Nouveau site — ${siteId} | ${lieu} | Urgence ${diagnostic.urgency}/5`,
+    html: `<div style="font-family:Outfit,Arial,sans-serif;max-width:680px;margin:0 auto;background:#FFF9F0;border-radius:12px;overflow:hidden;">
+  <div style="background:#1C1009;padding:20px 24px;display:flex;align-items:center;gap:12px;">
+    <span style="color:#F59E0B;font-size:22px;font-weight:bold;">LUMOKI</span>
+    <span style="color:#9A8070;font-size:13px;">Nouveau diagnostic de site</span>
   </div>
+  <div style="padding:24px;">
+    <h2 style="color:#1C1009;margin:0 0 4px;">${urg} ${siteId}</h2>
+    <p style="color:#9A8070;margin:0 0 20px;font-size:13px;">Urgence ${diagnostic.urgency}/5 · Confiance ${diagnostic.confidence}%</p>
 
-  <div style="background:#FFF9F0;padding:20px 24px;border:1px solid #E8DDD0;">
-
-    <h2 style="color:#1C1009;font-size:16px;margin:0 0 12px;">📍 Site</h2>
-    <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:20px;">
-      <tr><td style="padding:5px 8px;color:#9A8070;width:38%;">Lieu</td><td style="padding:5px 8px;font-weight:bold;">${lieu}</td></tr>
-      <tr style="background:#fff;"><td style="padding:5px 8px;color:#9A8070;">Type d'installation</td><td style="padding:5px 8px;">${siteTypeLabel}</td></tr>
-      <tr><td style="padding:5px 8px;color:#9A8070;">Familles bénéficiaires</td><td style="padding:5px 8px;">${state.people_count || '—'}</td></tr>
-      <tr style="background:#fff;"><td style="padding:5px 8px;color:#9A8070;">Hors service depuis</td><td style="padding:5px 8px;">${durationLabel}</td></tr>
-      <tr><td style="padding:5px 8px;color:#9A8070;">Symptôme principal</td><td style="padding:5px 8px;">${symptomLabel}</td></tr>
-      <tr style="background:#fff;"><td style="padding:5px 8px;color:#9A8070;">Événement récent</td><td style="padding:5px 8px;">${eventLabel}</td></tr>
-      <tr><td style="padding:5px 8px;color:#9A8070;">Reporter</td><td style="padding:5px 8px;">${state.contact || '—'}</td></tr>
-      <tr style="background:#fff;"><td style="padding:5px 8px;color:#9A8070;">GPS</td><td style="padding:5px 8px;">${state.lat ? `${state.lat.toFixed(4)}, ${state.lng.toFixed(4)}` : '—'}</td></tr>
-    </table>
-
-    <h2 style="color:#1C1009;font-size:16px;margin:0 0 12px;">${urg} Diagnostic IA <span style="font-weight:normal;color:#9A8070;font-size:13px;">(${diagnostic.confidence || 0}% confiance)</span></h2>
-
+    <h3 style="color:#1C1009;font-size:14px;margin:0 0 8px;">📍 Site</h3>
     <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px;">
-      <tr><td style="padding:5px 8px;color:#9A8070;width:38%;">Onduleur</td><td style="padding:5px 8px;">${diagnostic.inverter_brand || '—'} ${diagnostic.inverter_model || ''} ${diagnostic.inverter_error_code ? '· Code erreur: <b>'+diagnostic.inverter_error_code+'</b>' : ''}</td></tr>
-      <tr style="background:#fff;"><td style="padding:5px 8px;color:#9A8070;">Puissance estimée</td><td style="padding:5px 8px;">${diagnostic.kva_estimated ? diagnostic.kva_estimated + ' kVA' : '—'}</td></tr>
-      <tr><td style="padding:5px 8px;color:#9A8070;">Batteries</td><td style="padding:5px 8px;">${diagnostic.battery_count || '—'}× ${diagnostic.battery_brand || ''} ${diagnostic.battery_ah ? diagnostic.battery_ah+'Ah' : ''} ${diagnostic.battery_voltage ? diagnostic.battery_voltage+'V' : ''}</td></tr>
-      <tr style="background:#fff;"><td style="padding:5px 8px;color:#9A8070;">Capacité batterie estimée</td><td style="padding:5px 8px;">${diagnostic.kwh_estimated ? diagnostic.kwh_estimated + ' kWh' : (diagnostic.battery_count && diagnostic.battery_ah && diagnostic.battery_voltage ? ((diagnostic.battery_count * diagnostic.battery_ah * diagnostic.battery_voltage)/1000).toFixed(1) + ' kWh (calculé)' : '—')}</td></tr>
-      <tr><td style="padding:5px 8px;color:#9A8070;">Panneaux</td><td style="padding:5px 8px;">${diagnostic.panel_count || '—'} panneaux · ${diagnostic.kwp_estimated ? diagnostic.kwp_estimated + ' kWp' : '—'}</td></tr>
-      <tr style="background:#fff;"><td style="padding:5px 8px;color:#9A8070;">Urgence</td><td style="padding:5px 8px;font-weight:bold;">${urg} ${diagnostic.urgency}/5</td></tr>
-      <tr><td style="padding:5px 8px;color:#9A8070;">Budget estimé</td><td style="padding:5px 8px;font-weight:bold;">€${diagnostic.total_cost_est || '?'}</td></tr>
+      <tr style="background:#F3F0EB;"><td style="padding:5px 8px;color:#9A8070;">Lieu</td><td style="padding:5px 8px;font-weight:bold;">${lieu}</td></tr>
+      <tr><td style="padding:5px 8px;color:#9A8070;">Type d'installation</td><td style="padding:5px 8px;">${siteTypeLabel}</td></tr>
+      <tr style="background:#F3F0EB;"><td style="padding:5px 8px;color:#9A8070;">Familles bénéficiaires</td><td style="padding:5px 8px;">${state.people_count || '—'}</td></tr>
+      <tr><td style="padding:5px 8px;color:#9A8070;">Hors service depuis</td><td style="padding:5px 8px;">${state.offline_duration || '—'}</td></tr>
+      <tr style="background:#F3F0EB;"><td style="padding:5px 8px;color:#9A8070;">Symptôme principal</td><td style="padding:5px 8px;">${state.symptom || '—'}</td></tr>
+      <tr><td style="padding:5px 8px;color:#9A8070;">Événement récent</td><td style="padding:5px 8px;">${state.recent_event || '—'}</td></tr>
+      <tr style="background:#F3F0EB;"><td style="padding:5px 8px;color:#9A8070;">Reporter</td><td style="padding:5px 8px;">${state.contact || '—'}</td></tr>
+      <tr><td style="padding:5px 8px;color:#9A8070;">GPS</td><td style="padding:5px 8px;">${state.lat ? `${state.lat.toFixed(4)}, ${state.lng.toFixed(4)}` : '—'}</td></tr>
     </table>
 
-    <h3 style="color:#1C1009;font-size:14px;margin:0 0 8px;">Pannes probables</h3>
-    <ul style="margin:0 0 16px;padding-left:20px;font-size:13px;line-height:1.6;">
-      <li><b>${diagnostic.fault_primary || '—'}</b></li>
-      ${diagnostic.fault_secondary ? `<li>${diagnostic.fault_secondary}</li>` : ''}
-      ${diagnostic.fault_tertiary ? `<li>${diagnostic.fault_tertiary}</li>` : ''}
+    <h3 style="color:#1C1009;font-size:14px;margin:20px 0 8px;">${urg} Diagnostic IA (${diagnostic.confidence}% confiance)</h3>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px;">
+      <tr style="background:#F3F0EB;"><td style="padding:5px 8px;color:#9A8070;">Onduleur</td><td style="padding:5px 8px;">${diagnostic.inverter_brand || '—'} ${diagnostic.inverter_model || ''} · Code erreur: ${diagnostic.inverter_error_code || '—'}</td></tr>
+      <tr><td style="padding:5px 8px;color:#9A8070;">Puissance estimée</td><td style="padding:5px 8px;">${diagnostic.kva_estimated || '—'} kVA</td></tr>
+      <tr style="background:#F3F0EB;"><td style="padding:5px 8px;color:#9A8070;">Batteries</td><td style="padding:5px 8px;">${diagnostic.battery_count || '—'}× ${diagnostic.battery_brand || '—'}</td></tr>
+      <tr><td style="padding:5px 8px;color:#9A8070;">Capacité batterie estimée</td><td style="padding:5px 8px;">${diagnostic.kwh_estimated || '—'} kWh</td></tr>
+      <tr style="background:#F3F0EB;"><td style="padding:5px 8px;color:#9A8070;">Panneaux</td><td style="padding:5px 8px;">${diagnostic.panel_count || '—'} panneaux · ${diagnostic.kwp_estimated || '—'} kWp</td></tr>
+      <tr><td style="padding:5px 8px;color:#9A8070;">Urgence</td><td style="padding:5px 8px;">${urg} ${diagnostic.urgency}/5</td></tr>
+      <tr style="background:#F3F0EB;"><td style="padding:5px 8px;color:#9A8070;">Budget estimé</td><td style="padding:5px 8px;font-weight:bold;">€${diagnostic.total_cost_est}</td></tr>
+    </table>
+
+    ${(diagnostic.fault_primary || diagnostic.fault_secondary || diagnostic.fault_tertiary) ? `
+    <h3 style="color:#1C1009;font-size:14px;margin:20px 0 8px;">⚠️ Pannes probables</h3>
+    <p style="font-size:13px;margin:0 0 16px;">${[diagnostic.fault_primary, diagnostic.fault_secondary, diagnostic.fault_tertiary].filter(Boolean).join(' · ')}</p>
+    ` : ''}
+
+    ${(diagnostic.parts_needed?.length > 0) ? `
+    <h3 style="color:#1C1009;font-size:14px;margin:20px 0 8px;">🔧 Pièces nécessaires</h3>
+    <ul style="font-size:13px;margin:0 0 16px;padding-left:20px;">
+      ${diagnostic.parts_needed.map(p => `<li>${p.qty}× ${p.name} — ~€${p.est_cost_eur}</li>`).join('')}
     </ul>
+    ` : ''}
 
-    <h3 style="color:#1C1009;font-size:14px;margin:0 0 8px;">Pièces nécessaires</h3>
-    <ul style="margin:0 0 16px;padding-left:20px;font-size:13px;line-height:1.6;">${partsList}</ul>
+    <h3 style="color:#1C1009;font-size:14px;margin:20px 0 8px;">📋 Rapport IA</h3>
+    <p style="font-size:13px;line-height:1.6;background:#fff;padding:12px;border-radius:8px;border-left:3px solid #F59E0B;">${(diagnostic.ai_report || '').replace(/\n/g,'<br>')}</p>
 
-    <h3 style="color:#1C1009;font-size:14px;margin:0 0 8px;">Rapport IA</h3>
-    <p style="font-size:13px;color:#444;line-height:1.6;margin:0 0 16px;">${diagnostic.ai_report || '—'}</p>
-
-    <h3 style="color:#1C1009;font-size:14px;margin:0 0 8px;">Instructions technicien</h3>
-    <ul style="margin:0 0 20px;padding-left:20px;font-size:13px;line-height:1.7;">${instrList || '<li>' + (diagnostic.ai_instructions || '—') + '</li>'}</ul>
+    <h3 style="color:#1C1009;font-size:14px;margin:20px 0 8px;">👷 Instructions technicien</h3>
+    <p style="font-size:13px;line-height:1.6;background:#fff;padding:12px;border-radius:8px;border-left:3px solid #16A34A;">${(diagnostic.ai_instructions || '').replace(/\n/g,'<br>')}</p>
 
     <h3 style="color:#1C1009;font-size:14px;margin:20px 0 8px;">💰 Détail du budget estimé</h3>
     ${(() => {
-      const m = diagnostic._cost_meta || {};
       const parts = (diagnostic.parts_needed || []);
       const rows = [
         ...parts.map(p => `<tr><td style="padding:4px 8px;color:#9A8070;">Pièce — ${p.name}</td><td style="padding:4px 8px;">${p.qty}× €${p.est_cost_eur} = <b>€${((p.qty||1)*(p.est_cost_eur||0)).toFixed(2)}</b></td></tr>`),
@@ -675,535 +518,281 @@ async function notifyTeam(siteId, diagnostic, state) {
       ].join('');
       return `<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:20px;">${rows}</table>`;
     })()}
+
     <div style="text-align:center;margin-top:16px;">
       <a href="https://lumoki.africa/sites.html" style="background:#F59E0B;color:#1C1009;padding:10px 24px;border-radius:100px;text-decoration:none;font-weight:bold;font-size:13px;">Voir sur le dashboard →</a>
     </div>
-  </div>
-
-  <div style="background:#1C1009;padding:12px 24px;border-radius:0 0 8px 8px;text-align:center;color:#9A8070;font-size:11px;">
-    Lumoki · lumoki.africa · Solar Resurrection
   </div>
 </div>`
   });
 }
 
-// ── SEND WHATSAPP ─────────────────────────────────────────────────────────────
-async function send(to, body) {
-  const from = process.env.TWILIO_WHATSAPP_NUMBER.startsWith('whatsapp:')
-    ? process.env.TWILIO_WHATSAPP_NUMBER
-    : `whatsapp:${process.env.TWILIO_WHATSAPP_NUMBER}`;
-  await twilioCli.messages.create({
-    from,
-    to: `whatsapp:${to}`,
-    body
+// ── FINALIZE SITE (Supabase insert) ──────────────────────────────────────────
+async function finalizeSite(conv, state, diag, lang) {
+  const { count } = await db.from('sites').select('*', { count: 'exact', head: true });
+  const year        = new Date().getFullYear();
+  const countryCode = state.country_code || 'AFR';
+  const siteId      = `${countryCode}-${year}-${String((count || 0) + 1).padStart(3, '0')}`;
+  const country     = state.country_name || state.village || 'Unknown';
+  const category    = state.site_type || 'community';
+
+  const { error: siteErr } = await db.from('sites').insert({
+    id: siteId,
+    name: `${state.village || state.location || 'Unknown'} — Solar Site`,
+    lat: state.lat || 0, lng: state.lng || 0,
+    status: 'offline', category,
+    kwp: diag.kwp_estimated || 0,
+    kwh: diag.kwh_estimated || 0,
+    kva: diag.kva_estimated || 0,
+    country, region: 'west',
+    people: parseInt(state.people_count) || 0,
+    photo_url:        state.photos?.find(p => p.type === 'inverter_far')?.url || null,
+    photo_panels_url: state.photos?.find(p => p.type === 'panels_far')?.url || null,
+    fault:            diag.fault_primary || 'À diagnostiquer',
+    sourced_at:       new Date().toISOString().split('T')[0],
+    budget:           diag.total_cost_est || null,
+    workflow_status:  'received',
+    kwhconso_total:   0,
+    kwhconso_last24h: 0
   });
+  if (siteErr) console.error('⚠️ Site insert error:', siteErr.message);
+  else console.log('✅ Site created:', siteId);
+
+  await db.from('diagnostics').insert({
+    site_id:              siteId,
+    reporter_phone:       state.contact || null,
+    lang,
+    location_text:        [state.village, state.country_name].filter(Boolean).join(', ') || null,
+    symptom:              state.symptom || null,
+    recent_event:         state.recent_event || null,
+    outage_duration:      state.offline_duration || null,
+    photo_urls:           (state.photos || []).map(p => p.url),
+    inverter_brand:       diag.inverter_brand || null,
+    inverter_model:       diag.inverter_model || null,
+    inverter_error_code:  diag.inverter_error_code || null,
+    kva_estimated:        diag.kva_estimated || null,
+    battery_brand:        diag.battery_brand || null,
+    battery_count:        diag.battery_count || null,
+    battery_ah:           diag.battery_ah || null,
+    battery_voltage:      diag.battery_voltage || null,
+    battery_tech:         diag.battery_tech || null,
+    kwh_estimated:        diag.kwh_estimated || null,
+    panel_count:          diag.panel_count || null,
+    kwp_estimated:        diag.kwp_estimated || null,
+    fault_primary:        diag.fault_primary || null,
+    fault_secondary:      diag.fault_secondary || null,
+    fault_tertiary:       diag.fault_tertiary || null,
+    urgency:              diag.urgency || null,
+    confidence:           diag.confidence || null,
+    parts_needed:         diag.parts_needed || null,
+    labor_hours:          diag.labor_hours || null,
+    total_cost_est:       diag.total_cost_est || null,
+    nearest_city:         diag._cost_meta?.nearest_city || null,
+    distance_km:          diag._cost_meta?.distance_km || null,
+    ai_report:            diag.ai_report || null,
+    ai_instructions:      diag.ai_instructions || null,
+    raw_session:          state
+  }).then(({error: e}) => e && console.error('⚠️ Diag insert error:', e.message));
+
+  return siteId;
 }
 
 // ── MAIN WEBHOOK ──────────────────────────────────────────────────────────────
 app.post('/webhook', async (req, res) => {
-  // Twilio attend une réponse TwiML vide — pas de texte sinon il l'envoie comme message
   res.set('Content-Type', 'text/xml').send('<Response/>');
 
   const phone    = req.body.From?.replace('whatsapp:', '') || '';
   const body     = (req.body.Body || '').trim();
-  const mediaUrl = req.body.MediaUrl0 || null;
-  console.log(`📩 Incoming | phone: ${phone} | body: "${body}" | media: ${mediaUrl ? 'yes' : 'no'}`);
+  const isSkip   = body.toUpperCase() === 'SKIP';
+  const isTest   = body.toUpperCase() === 'TEST';
+
+  // Collect all media URLs (Twilio supports up to 10 per message)
+  const mediaUrls = [];
+  for (let i = 0; i <= 9; i++) {
+    const u = req.body[`MediaUrl${i}`];
+    if (u) mediaUrls.push(u);
+  }
+
+  console.log(`📩 Incoming | phone: ${phone} | body: "${body.substring(0,30)}" | media: ${mediaUrls.length}`);
   if (!phone) return;
 
-  let conv = null;
   try {
     // Load or create conversation
     let { data: convData, error: convErr } = await db.from('conversations')
       .select('*').eq('phone', phone).eq('status', 'in_progress').single();
-    conv = convData;
+    let conv = convData;
 
-    console.log(`🔍 Conv loaded: ${conv ? `id=${conv.id} step=${conv.step}` : 'none'} | err: ${convErr?.code || 'ok'}`);
+    console.log(`🔍 Conv: ${conv ? `id=${conv.id}` : 'none'} | err: ${convErr?.code || 'ok'}`);
 
     if (!conv) {
       const lang = await detectLanguage(body);
-      console.log(`🌐 New conv | lang: ${lang}`);
-      // Create directly at step 1 — welcome is the step 0 action
       const { data: nc, error: insertErr } = await db.from('conversations')
         .insert({ phone, language: lang, step: 1, state: {} }).select().single();
-      console.log(`➕ Insert conv: ${nc ? `id=${nc.id} step=${nc.step}` : 'FAILED'} | err: ${insertErr?.message || 'ok'}`);
+      console.log(`➕ New conv id=${nc?.id} | err: ${insertErr?.message || 'ok'}`);
       if (!nc) return;
-      await send(phone, t('welcome', lang));
+
+      // Send logo first (if available), then welcome message
+      if (LUMOKI_LOGO_URL) await send(phone, '', LUMOKI_LOGO_URL);
+      await send(phone, lang === 'en'
+        ? `🌞 *Welcome to Lumoki*\n_Resurrecting solar across Sub-Saharan Africa_\n\nI'm your reporting assistant. In about 10 minutes, your report will help send a technician to bring this site back to life — *free of charge* for the community.\n\nLet's start! 📍 Share your *GPS location* (button 📎 → Location)\nOr type *SKIP* to continue without GPS.`
+        : `🌞 *Bienvenue sur Lumoki*\n_Ressusciter le solaire en Afrique subsaharienne_\n\nJe suis votre assistant de signalement. En 10 minutes, votre rapport permettra d'envoyer un technicien et de remettre ce site en service — *gratuitement* pour la communauté.\n\nCommençons ! 📍 Partagez votre *position GPS* (bouton 📎 → Lieu)\nOu tapez *SKIP* pour continuer sans GPS.`
+      );
       return;
     }
 
     const lang  = conv.language || 'fr';
-    const step  = conv.step;
     const state = { ...conv.state };
-    let next    = step + 1;
-    console.log(`▶️  Step ${step} | lang: ${lang} | pending: ${state.pending_confirm || 'none'}`);
 
-    // Handle photo upload helper
-    // Helper: upload photo + analyse Claude
-    const uploadIfMedia = async (type, context) => {
-      if (!mediaUrl) return;
-      const result  = await uploadPhoto(mediaUrl, conv.id, type);
-      if (!result) return;
-      const analysis = await analyzePhoto(result.url, context);
-      // Store base64 in memory for final Claude Vision diagnostic
-      state.photos = [...(state.photos || []), {
-        type,
-        url:      result.url,
-        base64:   result.base64,
-        mimeType: result.mimeType,
-        analysis
-      }];
-    };
-
-    // Helper: messages d'aide photo par langue
-    const photoHelp = {
-      fr: (hint) => `📸 Merci d'envoyer une *photo* ${hint}\n\nSi vous ne pouvez pas, répondez *SKIP* pour passer.`,
-      en: (hint) => `📸 Please send a *photo* ${hint}\n\nIf you can't, reply *SKIP* to continue.`,
-      sw: (hint) => `📸 Tafadhali tuma *picha* ${hint}\n\nUkishindwa, jibu *SKIP* kuendelea.`,
-      wo: (hint) => `📸 Yónneel *litrat* ${hint}\n\nBu mën ul, def *SKIP*.`,
-      bm: (hint) => `📸 *Fɔtɔ* ci dɔ ${hint}\n\nNi i ma se, sɛbɛn *SKIP*.`,
-      fon: (hint) => `📸 Sɛ́nd *foto* ɖé ${hint}\n\nEnyi a sixu ǎ, wlan *SKIP*.`,
-      ha: (hint) => `📸 Aika *hoto* ${hint}\n\nIn ba za ku iya ba, rubuta *SKIP*.`,
-      yo: (hint) => `📸 Fi *fọ́tò* ránṣẹ́ ${hint}\n\nTí o kò bá lè, dahùn *SKIP*.`,
-      dyu: (hint) => `📸 *Fɔtɔ* ci dɔ ${hint}\n\nNi i ma se, sɛbɛn *SKIP*.`
-    };
-    const ph = photoHelp[lang] || photoHelp.fr;
-    const isSkip = body.toUpperCase() === 'SKIP';
-
-    // Helper: confirmation for free-text inputs
-    const isYes = /^(oui|yes|ok|waaw|ɔwɔ|ɛɛn|eh|bẹ̀ẹni|ndiyo|si|da|1)$/i.test(body.trim());
-    const isNo  = /^(non|no|déedéet|ayi|eyi|a'a|rárá|hapana|2)$/i.test(body.trim());
-
-    const confirmOrSave = async (field, value, nextQuestion, nextStep) => {
-      if (state.pending_confirm === field) {
-        // User is responding to confirmation
-        if (isYes) {
-          state[field] = state[`pending_${field}`];
-          delete state.pending_confirm;
-          delete state[`pending_${field}`];
-          await send(phone, nextQuestion);
-        } else {
-          // No — re-ask
-          delete state.pending_confirm;
-          delete state[`pending_${field}`];
-          const confirmNo = T.confirm_no[lang] || T.confirm_no.fr;
-          await send(phone, confirmNo + nextQuestion.split('\n')[0]);
-          next = step; // stay on same step
-        }
-      } else {
-        // First time — ask confirmation
-        state.pending_confirm = field;
-        state[`pending_${field}`] = value;
-        const confirmFn = T.confirm[lang] || T.confirm.fr;
-        await send(phone, confirmFn(value));
-        next = step; // stay on same step
+    // ── GPS HANDLING ─────────────────────────────────────────────────────────
+    let hasGps = false;
+    const rawLat = req.body.Latitude;
+    const rawLng = req.body.Longitude;
+    if (rawLat && rawLng) {
+      state.lat = parseFloat(rawLat);
+      state.lng = parseFloat(rawLng);
+      console.log(`📍 GPS saved: ${state.lat}, ${state.lng}`);
+      hasGps = true;
+      // Auto reverse geocode — updates state if successful
+      const geo = await reverseGeocode(state.lat, state.lng);
+      if (geo) {
+        if (geo.commune) state.village = geo.commune;
+        if (geo.country) state.country_name = geo.country;
+        if (geo.country_code) state.country_code = geo.country_code;
+        state.location_confirmed = false; // Haiku will ask for confirmation
       }
-    };
+    }
 
-    console.log("SWITCH step=" + step + " next=" + next + " body=" + body.substring(0,20));
+    // ── PHOTO HANDLING (batch) ────────────────────────────────────────────────
+    const newPhotos = [];
+    if (mediaUrls.length > 0) {
+      const existingCount = (state.photos || []).length;
+      for (let i = 0; i < mediaUrls.length; i++) {
+        // Auto-assign photo type based on what's still missing
+        const missing = REQUIRED_PHOTOS.filter(r => !(state.photos || []).find(p => p.type === r.type));
+        const photoType = missing[i]?.type || `extra_${Date.now()}_${i}`;
+        const result = await uploadPhoto(mediaUrls[i], conv.id, photoType);
+        if (result) {
+          // Quick Haiku vision analysis
+          try {
+            const slot = REQUIRED_PHOTOS.find(r => r.type === photoType);
+            const context = slot ? slot.label_en : 'additional solar installation photo';
+            const analysisRes = await ai.messages.create({
+              model: 'claude-haiku-4-5-20251001', max_tokens: 300,
+              messages: [{ role: 'user', content: [
+                { type: 'image', source: { type: 'url', url: result.url } },
+                { type: 'text', text: `Solar photo context: "${context}". Extract: brand, model, numbers, damage, error codes. JSON only: {"observations":"","extracted_data":{},"anomalies":[],"confidence":0}` }
+              ]}]
+            });
+            const analysis = JSON.parse(analysisRes.content[0].text.replace(/```json|```/g,'').trim());
+            result.analysis = analysis;
+          } catch(e) { result.analysis = { observations: 'uploaded', confidence: 0 }; }
 
-    // ── RACCOURCI TEST — saute directement au contact ────────────────────────
-    if (body.toUpperCase() === 'TEST' && step < 18) {
-      state.site_type     = state.site_type     || '1';
-      state.people_count  = state.people_count  || '5';
-      state.offline_duration = state.offline_duration || '3';
-      state.symptom       = state.symptom       || '1';
-      state.recent_event  = state.recent_event  || '4';
+          result.type = photoType;
+          newPhotos.push(result);
+          state.photos = [...(state.photos || []), result];
+        }
+      }
+      console.log(`📸 ${newPhotos.length} photo(s) processed, total: ${state.photos.length}`);
+    }
+
+    // ── TEST MODE ─────────────────────────────────────────────────────────────
+    if (isTest) {
       state.village       = state.village       || 'Test Village';
-      state.country_code  = state.country_code  || 'AFR';
-      state.country_name  = state.country_name  || 'Test Country';
-      const skipMsg = { fr: '⚡ *Mode test* — étapes ignorées. Entrez votre contact pour déclencher le diagnostic.', en: '⚡ *Test mode* — steps skipped. Enter your contact to trigger the diagnostic.' };
-      await send(phone, skipMsg[lang] || skipMsg.fr);
-      await db.from('conversations').update({ state, step: 18 }).eq('id', conv.id);
-      return;
+      state.country_name  = state.country_name  || 'Bénin';
+      state.country_code  = state.country_code  || 'BEN';
+      state.site_type     = state.site_type     || 'school';
+      state.people_count  = state.people_count  || '50';
+      state.offline_duration = state.offline_duration || 'environ 2 mois';
+      state.symptom       = state.symptom       || 'Rien ne s\'allume';
+      state.recent_event  = state.recent_event  || 'Rien de particulier';
+      state.contact       = state.contact       || 'Test User +0000000000';
+      state.location_confirmed = true;
     }
 
-    switch(step) {
+    // ── CHECK IF READY ────────────────────────────────────────────────────────
+    const textFieldsComplete = state.village && state.country_name && state.site_type &&
+      state.people_count && state.offline_duration && state.symptom &&
+      state.recent_event && state.contact && state.location_confirmed;
+    const photosComplete = (state.photos || []).length >= 9;
+    const alreadyReady   = textFieldsComplete && (photosComplete || isTest);
 
-      // ── STEP 1: GPS + confirmation (all in one step) ────────────────────────
-      case 1: {
-        const lat = req.body.Latitude;
-        const lng = req.body.Longitude;
+    let haikuResult = null;
 
-        if (state.awaiting_village_correction) {
-          // User typed corrected village name after saying No
-          state.village = body;
-          state.geo_confirmed = true;
-          delete state.awaiting_village_correction;
-          await send(phone, t('site_type', lang));
-          next = 4;
+    if (!alreadyReady) {
+      // Run Haiku to collect missing info
+      haikuResult = await runHaiku(state, body, lang, newPhotos, hasGps, state.lat, state.lng);
 
-        } else if (state.lat && state.village && state.geo_confirmed === false) {
-          // GPS was received, we sent the confirmation — now user is responding
-          if (isYes) {
-            state.geo_confirmed = true;
-            await send(phone, t('site_type', lang));
-            next = 4;
-          } else {
-            // No — ask to type village name
-            const correctVillage = {
-              fr: `D'accord ! Tapez le nom du *village ou de la commune* :`,
-              en: `OK! Type the *village or commune* name:`,
-              sw: `Sawa! Andika jina la *kijiji au wilaya*:`,
-              wo: `Waaw ! Bind *turu dëkk wala commune* bi:`,
-              bm: `Aw ! *Dugu wala commune* tɔgɔ sɛbɛn:`,
-              fon: `Enyi! Wlan nyikɔ *toxo wala commune* ɔ tɔn:`,
-              ha: `To! Rubuta sunan *gari ko gundumar*:`,
-              yo: `Ó dára! Kọ orúkọ *abúlé tàbí ìgbèríko*:`,
-              dyu: `Aw ! *Dugu wala commune* tɔgɔ sɛbɛn:`
-            };
-            await send(phone, correctVillage[lang] || correctVillage.fr);
-            state.awaiting_village_correction = true;
-            next = 1; // stay on step 1
+      // Apply updates from Haiku
+      if (haikuResult.updates) {
+        for (const [k, v] of Object.entries(haikuResult.updates)) {
+          if (v !== null && v !== undefined) {
+            if (k === 'site_type') state[k] = mapSiteType(v) || v;
+            else state[k] = v;
           }
-
-        } else if (lat && lng) {
-          // Fresh GPS received — always save raw coords first
-          state.lat = parseFloat(lat);
-          state.lng = parseFloat(lng);
-          console.log(`📍 GPS saved: ${state.lat}, ${state.lng}`);
-          const geo = await reverseGeocode(state.lat, state.lng);
-          if (geo && geo.commune && geo.country) {
-            state.country_code  = geo.code3;
-            state.country_name  = geo.country;
-            state.village       = geo.commune;
-            state.geo_confirmed = false;
-            const confirmFn = T.confirm_location[lang] || T.confirm_location.fr;
-            await send(phone, confirmFn(geo.commune, geo.country));
-            next = 1; // stay on step 1 for confirmation
-          } else {
-            // Geocoding failed but GPS coords are stored — go to manual country
-            // (state.lat is set, case 2 will handle it specially)
-            const gpsNote = {
-              fr: `📍 Position GPS enregistrée (${state.lat.toFixed(3)}, ${state.lng.toFixed(3)})
-
-` + T.country.fr,
-              en: `📍 GPS location saved (${state.lat.toFixed(3)}, ${state.lng.toFixed(3)})
-
-` + T.country.en,
-            };
-            await send(phone, gpsNote[lang] || gpsNote.fr);
-            next = 2;
-          }
-        } else {
-          // No GPS shared (text or SKIP) — go to manual country selection
-          await send(phone, t('country', lang));
-          next = 2;
         }
-        break;
       }
 
-      // ── STEP 2: Manual country ────────────────────────────────────────────────
-      case 2: {
-        // Special case: GPS was received but geocoding failed
-        // state.lat exists but no country_name → skip country list, ask village + country together
-        if (state.lat && !state.country_name) {
-          // User is answering the country question after GPS geocoding failed
-          // body could be a country number or free text
-          const c = COUNTRY_MAP[body.trim()];
-          if (c) {
-            state.country_code = c.code;
-            state.country_name = c.name;
-          } else {
-            state.country_code = 'AFR';
-            state.country_name = body;
-          }
-          await send(phone, t('village', lang));
-          next = 3;
-        } else {
-          const c = COUNTRY_MAP[body.trim()] || COUNTRY_MAP['12'];
-          state.country_code = c.code;
-          state.country_name = c.name;
-          await send(phone, t('village', lang));
-          next = 3;
-        }
-        break;
-      }
+      // Send Haiku reply
+      if (haikuResult.reply) await send(phone, haikuResult.reply);
 
-      // ── STEP 3: Manual village input ─────────────────────────────────────────
-      case 3:
-        await confirmOrSave('village', body, t('site_type', lang), 5);
-        break;
+      // Save state
+      await db.from('conversations').update({ state, step: 2 }).eq('id', conv.id);
 
-      // ── STEP 4: Site type ────────────────────────────────────────────────────
-      case 4:  console.log("CASE4 hit, body=" + body); state.site_type = body; await send(phone, t('families', lang)); break;
+      // Check if now ready after Haiku updates
+      const nowReady = haikuResult.ready || (
+        state.village && state.country_name && state.site_type &&
+        state.people_count && state.offline_duration && state.symptom &&
+        state.recent_event && state.contact && state.location_confirmed &&
+        (state.photos || []).length >= 9
+      );
 
-      // ── STEP 5: Number of families ───────────────────────────────────────────
-      case 5:
-        await confirmOrSave('people_count', body, t('duration', lang), 6);
-        break;
-
-      // ── STEP 6: Outage duration (multiple choice) ─────────────────────────────
-      case 6:  state.offline_duration = body; await send(phone, t('symptom', lang)); break;
-
-      // ── STEP 7: Symptom ──────────────────────────────────────────────────────
-      case 7:  state.symptom = body; await send(phone, t('event', lang)); break;
-
-      // ── STEP 8: Recent event ─────────────────────────────────────────────────
-      case 8:  state.recent_event = body; await send(phone, t('inv_far', lang)); break;
-
-      // ── STEPS 9-17: Photos ────────────────────────────────────────────────────
-      case 9:
-        if (!mediaUrl && !isSkip) { await send(phone, ph('de la boîte principale (de loin)')); return; }
-        await uploadIfMedia('inverter_far', 'inverter main box far shot');
-        await send(phone, t('inv_brand', lang)); break;
-
-      case 10:
-        if (!mediaUrl && !isSkip) { await send(phone, ph("de l'étiquette (marque et modèle)")); return; }
-        await uploadIfMedia('inverter_brand', 'inverter label brand model numbers');
-        await send(phone, t('inv_screen', lang)); break;
-
-      case 11:
-        if (!mediaUrl && !isSkip) { await send(phone, ph("de l'écran ou des voyants")); return; }
-        await uploadIfMedia('inverter_screen', 'inverter screen error codes display');
-        await send(phone, t('bat_far', lang)); break;
-
-      case 12:
-        if (!mediaUrl && !isSkip) { await send(phone, ph('de toutes les batteries (de loin)')); return; }
-        await uploadIfMedia('batteries_far', 'battery bank far shot count units');
-        await send(phone, t('bat_brand', lang)); break;
-
-      case 13:
-        if (!mediaUrl && !isSkip) { await send(phone, ph("de l'étiquette sur une batterie")); return; }
-        await uploadIfMedia('battery_brand', 'battery label brand capacity voltage');
-        await send(phone, t('bat_terminals', lang)); break;
-
-      case 14:
-        if (!mediaUrl && !isSkip) { await send(phone, ph('des bornes et câbles des batteries')); return; }
-        await uploadIfMedia('battery_terminals', 'battery terminals corrosion cables');
-        await send(phone, t('tableau', lang)); break;
-
-      case 15:
-        if (!mediaUrl && !isSkip) { await send(phone, ph('du tableau électrique ou des fusibles')); return; }
-        await uploadIfMedia('tableau', 'electrical panel fuses breakers');
-        await send(phone, t('panels_far', lang)); break;
-
-      case 16:
-        if (!mediaUrl && !isSkip) { await send(phone, ph('pour voir tous les panneaux')); return; }
-        await uploadIfMedia('panels_far', 'solar panels far shot count');
-        await send(phone, t('panels_close', lang)); break;
-
-      case 17:
-        if (!mediaUrl && !isSkip) { await send(phone, ph('des panneaux (si anomalie visible)')); return; }
-        await uploadIfMedia('panel_close', 'solar panel close-up cracks dirt');
-        await send(phone, t('extra_photo', lang)); break;
-
-      case 18:
-        // Photo bonus optionnelle
-        if (!isSkip) await uploadIfMedia('extra', 'additional context photo — anomaly, wiring, environment');
-        await send(phone, t('contact', lang)); break;
-
-      case 19:
-        if (state.pending_confirm === 'contact') {
-          if (isYes) {
-            state.contact = state.pending_contact;
-            delete state.pending_confirm;
-            delete state.pending_contact;
-          } else {
-            delete state.pending_confirm;
-            delete state.pending_contact;
-            await send(phone, (T.confirm_no[lang] || T.confirm_no.fr) + t('contact', lang));
-            next = step;
-            break;
-          }
-        } else if (!state.contact) {
-          state.pending_confirm = 'contact';
-          state.pending_contact = body;
-          const confirmFn = T.confirm[lang] || T.confirm.fr;
-          await send(phone, confirmFn(body));
-          next = step;
-          break;
-        }
-        await send(phone, t('analyzing', lang));
-
-        // Save state first
-        await db.from('conversations').update({ state, step: 20, status: "complete" }).eq('id', conv.id);
-
-        // Generate AI diagnostic — wrapped in try/catch so failure doesn't block site creation
-        let diag = {};
-        try {
-          diag = await generateDiagnostic(state, lang);
-          console.log('✅ Diagnostic generated, urgency:', diag.urgency);
-        } catch(diagErr) {
-          console.error('⚠️ Diagnostic failed (continuing):', diagErr.message);
-          diag = {
-            fault_primary: 'Diagnostic IA indisponible — analyse manuelle requise',
-            fault_secondary: '', urgency: 3, confidence: 0,
-            kwp_estimated: 0, kwh_estimated: 0, kva_estimated: 0, battery_count: 0, battery_brand: '', inverter_brand: '',
-            inverter_model: '', inverter_error_code: '',
-            parts_needed: [], total_cost_est: 0,
-            ai_report: 'Analyse automatique échouée. Les photos et données brutes sont disponibles pour analyse manuelle.',
-            ai_instructions: 'Contacter le reporter directement pour compléter le diagnostic.'
-          };
-        }
-
-        // Create site in Supabase
-        const { count } = await db.from('sites').select('*', { count: 'exact', head: true });
-        const year = new Date().getFullYear();
-        const countryCode = state.country_code || 'AFR';
-        const siteId = `${countryCode}-${year}-${String((count || 0) + 1).padStart(3, '0')}`;
-        const country = state.country_name || state.village || state.location || 'Unknown';
-        const category = ({'1':'community','2':'school','3':'health','4':'water','5':'business'})[state.site_type] || 'community';
-
-        const { error: siteErr } = await db.from('sites').insert({
-          id: siteId,
-          name: `${state.village || state.location || 'Unknown'} — Solar Site`,
-          lat: state.lat || 0, lng: state.lng || 0,
-          status: 'offline', category,
-          kwp: diag.kwp_estimated || 0,
-          kwh: diag.kwh_estimated || 0,
-          kva: diag.kva_estimated || 0,
-          country, region: 'west',
-          people: parseInt(state.people_count) || 0,
-          photo_url: state.photos?.[0]?.url || null,
-          fault: diag.fault_primary || 'À diagnostiquer',
-          sourced_at: new Date().toISOString().split('T')[0],
-          budget: diag.total_cost_est || null
-        });
-        if (siteErr) console.error('⚠️ Site insert error:', siteErr.message);
-        else console.log('✅ Site created:', siteId);
-
-        await db.from('diagnostics').insert({
-          site_id:              siteId,
-          reporter_phone:       state.contact || null,
-          lang:                 lang,
-          location_text:        [state.village, state.country_name].filter(Boolean).join(', ') || null,
-          symptom:              state.symptom || null,
-          recent_event:         state.recent_event || null,
-          outage_duration:      state.offline_duration || null,
-          photo_urls:           (state.photos || []).map(p => p.url),
-          inverter_brand:       diag.inverter_brand || null,
-          inverter_model:       diag.inverter_model || null,
-          inverter_error_code:  diag.inverter_error_code || null,
-          kva_estimated:        diag.kva_estimated || null,
-          battery_brand:        diag.battery_brand || null,
-          battery_count:        diag.battery_count || null,
-          battery_ah:           diag.battery_ah || null,
-          battery_voltage:      diag.battery_voltage || null,
-          battery_tech:         diag.battery_tech || null,
-          kwh_estimated:        diag.kwh_estimated || null,
-          panel_count:          diag.panel_count || null,
-          kwp_estimated:        diag.kwp_estimated || null,
-          fault_primary:        diag.fault_primary || null,
-          fault_secondary:      diag.fault_secondary || null,
-          fault_tertiary:       diag.fault_tertiary || null,
-          urgency:              diag.urgency || null,
-          confidence:           diag.confidence || null,
-          parts_needed:         diag.parts_needed || null,
-          labor_hours:          diag.labor_hours || null,
-          total_cost_est:       diag.total_cost_est || null,
-          nearest_city:         diag._cost_meta?.nearest_city || null,
-          distance_km:          diag._cost_meta?.distance_km || null,
-          ai_report:            diag.ai_report || null,
-          ai_instructions:      diag.ai_instructions || null,
-          raw_session:          state
-        }).then(({error: e}) => e && console.error('⚠️ Diag insert error:', e.message));
-
-        await db.from('conversations').update({ site_id: siteId }).eq('id', conv.id);
-
-        // Send email — also wrapped
-        try {
-          await notifyTeam(siteId, diag, state);
-          console.log('✅ Email sent for', siteId);
-        } catch(emailErr) {
-          console.error('⚠️ Email failed:', emailErr.message);
-        }
-
-        // Confirmation message to reporter
-        const doneMsg = {
-          fr: `✅ *Signalement enregistré !*
-
-Référence : *${siteId}*
-
-Notre équipe technique a reçu votre rapport et les photos. Un technicien vous contactera dans les 48h.
-
-Une question ? Écrivez-nous : *info@lumoki.africa*
-
-Merci d'aider votre communauté ! 🌞 lumoki.africa`,
-          en: `✅ *Report registered!*
-
-Reference: *${siteId}*
-
-Our technical team has received your report and photos. A technician will contact you within 48 hours.
-
-Questions? Contact us: *info@lumoki.africa*
-
-Thank you for helping your community! 🌞 lumoki.africa`,
-          sw: `✅ *Ripoti imesajiliwa!*
-
-Nambari ya kumbukumbu: *${siteId}*
-
-Timu yetu imepokea ripoti na picha zako. Fundi atawasiliana nawe ndani ya masaa 48.
-
-Asante kwa kusaidia jamii yako! 🌞`,
-          wo: `✅ *Siiña bi dëkk na!*
-
-Référence : *${siteId}*
-
-Sunu équipe technique jël na rapport ak litrati yii. Benn technicien dinaa nekk ak yow ci 48h.
-
-Jërëjëf ! 🌞`,
-          bm: `✅ *Sɛbɛnni kɛra!*
-
-Référence : *${siteId}*
-
-Sunu équipe ye i ka rapport ni fɔtɔw sɔrɔ. Technicien dɔ bɛna i weele tile 2 kɔnɔ.
-
-I ni ce ! 🌞`,
-          fon: `✅ *Gbɛ̌ nǔ e kúnkan ɔ sɛ́ do!*
-
-Référence : *${siteId}*
-
-Mɛtɔn lɛ ɖó ripɔti kpo foto lɛ kpo. Technicien ɖé na ylɔ we ɖò wɛkɛ ɖokpo mɛ.
-
-Akpé ! 🌞`,
-          ha: `✅ *An yi rajista rahoto!*
-
-Lamba ta: *${siteId}*
-
-ƙungiyarmu ta karɓi rahoton ku da hotuna. Masanin fasaha zai sadar da ku cikin awanni 48.
-
-Na gode ! 🌞`,
-          yo: `✅ *Ìròyìn ti forúkọsilẹ̀!*
-
-Àtọ́kasí: *${siteId}*
-
-Ẹgbẹ́ wa ti gbà ìròyìn àti àwọn fọ́tò rẹ. Onímọ̀ ẹ̀rọ yóò kan sí ọ láàárọ̀ 48.
-
-Ẹ ṣéun ! 🌞`,
-          dyu: `✅ *Sɛbɛnni kɛra!*
-
-Référence : *${siteId}*
-
-Sunu équipe ye i ka rapport ni fɔtɔw sɔrɔ. Technicien dɔ bɛna i weele tile 2 kɔnɔ.
-
-I ni ce ! 🌞`
-        };
-        await send(phone, doneMsg[lang] || doneMsg.fr);
-        return;
-
-      default:
-        if (/bonjour|hello|nouveau|new|start/i.test(body)) {
-          await db.from('conversations').update({ status: 'abandoned' }).eq('id', conv.id);
-          const newLang = await detectLanguage(body);
-          await db.from("conversations").insert({ phone, language: newLang, step: 1, state: {} });
-          await send(phone, t('welcome', newLang));
-        }
-        return;
+      if (!nowReady) return;
     }
 
-    await db.from('conversations').update({ state, step: next, updated_at: new Date() }).eq('id', conv.id);
+    // ── LAUNCH DIAGNOSTIC ─────────────────────────────────────────────────────
+    const analyzeMsg = lang === 'en'
+      ? `✅ All information collected! 🙏\nLaunching AI analysis... ⏳\n\nYou'll receive a confirmation in a few minutes.`
+      : `✅ Toutes les informations sont collectées ! 🙏\nLancement de l'analyse IA... ⏳\n\nVous recevrez une confirmation dans quelques minutes.`;
+    await send(phone, analyzeMsg);
 
-  } catch(e) {
-    console.error('❌ Webhook error:', e.message);
-    console.error('Stack:', e.stack);
-    console.error('Conv:', conv ? `id=${conv.id} step=${conv.step}` : 'no conv');
+    await db.from('conversations').update({ state, step: 19, status: 'complete' }).eq('id', conv.id);
+
+    let diag = {};
     try {
-      await send(phone, '⚠️ Erreur technique. Tapez *restart* pour recommencer.');
-    } catch(e2) { console.error('Send error:', e2.message); }
+      diag = await generateDiagnostic(state, lang);
+      console.log('✅ Diagnostic generated, urgency:', diag.urgency);
+    } catch(diagErr) {
+      console.error('⚠️ Diagnostic failed:', diagErr.message);
+      diag = {
+        fault_primary: 'Diagnostic IA indisponible — analyse manuelle requise',
+        fault_secondary: '', urgency: 3, confidence: 0,
+        kwp_estimated: 0, kwh_estimated: 0, kva_estimated: 0,
+        battery_count: 0, battery_brand: '', inverter_brand: '', inverter_model: '',
+        inverter_error_code: '', parts_needed: [], labor_hours: 0,
+        total_cost_est: 0,
+        ai_report: 'Analyse automatique échouée.',
+        ai_instructions: 'Contacter le reporter directement.'
+      };
+    }
+
+    const siteId = await finalizeSite(conv, state, diag, lang);
+
+    try { await notifyTeam(siteId, diag, state); console.log('✅ Email sent for', siteId); }
+    catch(e) { console.error('⚠️ Email error:', e.message); }
+
+    // Confirmation message to reporter
+    const doneMsg = lang === 'en'
+      ? `✅ *Report registered!*\n\nReference: *${siteId}*\n\nOur technical team has received your report and photos. A technician will contact you within 48 hours.\n\nQuestions? Contact us: *info@lumoki.africa*\n\nThank you for helping your community! 🌞 lumoki.africa`
+      : `✅ *Signalement enregistré !*\n\nRéférence : *${siteId}*\n\nNotre équipe technique a reçu votre rapport et les photos. Un technicien vous contactera dans les 48h.\n\nUne question ? Écrivez-nous : *info@lumoki.africa*\n\nMerci d'aider votre communauté ! 🌞 lumoki.africa`;
+    await send(phone, doneMsg);
+
+  } catch(err) {
+    console.error('⚠️ Webhook error:', err);
   }
 });
 
-app.get('/', (req, res) => res.json({ status: 'Lumoki Bot 🌞', version: '1.0.0' }));
+// ── HEALTH CHECK ──────────────────────────────────────────────────────────────
+app.get('/', (req, res) => res.send('Lumoki Bot v2 — online'));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Lumoki Bot on port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Lumoki Bot v2 running on port ${PORT}`));
