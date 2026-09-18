@@ -121,16 +121,22 @@ function haversineKm(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-async function findNearestCity(lat, lng) {
+async function findNearestCity(lat, lng, countryCode) {
   if (!lat || !lng) return null;
   try {
-    const { data: cities, error } = await db.from('cities').select('city_name, lat, lng');
+    // Cap distance to 500km max — beyond that, fallback to 'nearest major city'
+    // Also: only search within the same country if known
+    let query = db.from('cities').select('city_name, lat, lng, country_iso3');
+    if (countryCode && countryCode !== 'AFR') query = query.eq('country_iso3', countryCode);
+    const { data: cities, error } = await query;
     if (error || !cities?.length) return null;
     let nearest = null, minDist = Infinity;
     for (const c of cities) {
       const d = haversineKm(lat, lng, c.lat, c.lng);
       if (d < minDist) { minDist = d; nearest = c; }
     }
+    // If nearest city is >500km away (e.g. GPS outside SSA), return null
+    if (minDist > 500) return null;
     return nearest ? { name: nearest.city_name, distance_km: Math.round(minDist) } : null;
   } catch(e) { console.error('findNearestCity error:', e.message); return null; }
 }
@@ -281,20 +287,21 @@ async function generateDiagnostic(state, lang) {
 
   const langName = { fr:'French', en:'English', wo:'Wolof', bm:'Bambara', sw:'Swahili', ha:'Hausa', yo:'Yoruba', fon:'Fon', dyu:'Dioula' }[lang] || 'French';
 
-  const cityData = await findNearestCity(state.lat, state.lng);
-  const nearestCity    = cityData?.name || 'nearest major city';
-  const distanceKm     = cityData?.distance_km ?? 100;
-  const roadDistanceKm = distanceKm * 2;
-  const travelCost     = parseFloat((roadDistanceKm * 2 * 0.30).toFixed(2));
+  const cityData = await findNearestCity(state.lat, state.lng, state.country_code);
+  const nearestCity    = cityData?.name || null;
+  const distanceKm     = cityData?.distance_km ?? null;
+  const roadDistanceKm = distanceKm ? distanceKm * 2 : null;
+  // If no city found (GPS outside SSA or unknown), travel cost = 0 — to be estimated on site
+  const travelCost     = roadDistanceKm ? parseFloat((roadDistanceKm * 2 * 0.30).toFixed(2)) : 0;
 
   const costContextBlock = `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 COST ESTIMATION CONTEXT:
   Labour rate:       €5.00 per hour
   Easy Kit IoT:      €100.00 — add to EVERY repair
-  Nearest city:      ${nearestCity}
-  Distance (road estimate): ${distanceKm} km x 2 (road factor) = ${roadDistanceKm} km
-  Travel (2 trips):  ${roadDistanceKm} km x 2 x €0.30/km = €${travelCost}
+  Nearest city:      ${nearestCity || 'unknown — travel cost excluded, to estimate on site'}
+  Distance (road estimate): ${distanceKm ? distanceKm + ' km x 2 (road factor) = ' + roadDistanceKm + ' km' : 'unknown'}
+  Travel (2 trips):  ${travelCost > 0 ? roadDistanceKm + ' km x 2 x €0.30/km = €' + travelCost : '€0 (GPS outside SSA or no city found)'}
   Community time:    3h fixed (presentation, training, handover)
 
 Formula:
@@ -427,9 +434,9 @@ Return ONLY this JSON structure (no markdown):
 
   diag.total_cost_est = totalCost;
   diag._cost_meta = {
-    nearest_city:      nearestCity,
-    distance_km:       distanceKm,
-    road_distance_km:  roadDistanceKm,
+    nearest_city:      nearestCity || null,
+    distance_km:       distanceKm || null,
+    road_distance_km:  roadDistanceKm || null,
     travel_cost_eur:   travelCost,
     labor_h_technical: laborH,
     labor_h_community: communityH,
@@ -707,6 +714,20 @@ app.post('/webhook', async (req, res) => {
       state.recent_event  = state.recent_event  || 'Rien de particulier';
       state.contact       = state.contact       || 'Test User +0000000000';
       state.location_confirmed = true;
+      // Warn if no photos — diagnostic will be unreliable
+      const photoCount = (state.photos || []).length;
+      if (photoCount < 3) {
+        const warnMsg = lang === 'en'
+          ? `⚡ *Test mode* — text fields filled. Send at least 3 photos before TEST for a reliable diagnostic (${photoCount}/9 received). Launching anyway...`
+          : `⚡ *Mode test* — champs texte remplis. Envoyez au moins 3 photos avant TEST pour un diagnostic fiable (${photoCount}/9 reçues). Je lance quand même...`;
+        await send(phone, warnMsg);
+      } else {
+        const skipMsg = lang === 'en'
+          ? `⚡ *Test mode* — text fields filled (${photoCount}/9 photos). Launching diagnostic...`
+          : `⚡ *Mode test* — champs texte remplis (${photoCount}/9 photos). Lancement du diagnostic...`;
+        await send(phone, skipMsg);
+      }
+      await db.from('conversations').update({ state, step: 2 }).eq('id', conv.id);
     }
 
     // ── CHECK IF READY ────────────────────────────────────────────────────────
@@ -732,11 +753,11 @@ app.post('/webhook', async (req, res) => {
         }
       }
 
+      // Save state BEFORE sending reply — prevents race condition on fast messages
+      await db.from('conversations').update({ state, step: 2 }).eq('id', conv.id);
+
       // Send Haiku reply
       if (haikuResult.reply) await send(phone, haikuResult.reply);
-
-      // Save state
-      await db.from('conversations').update({ state, step: 2 }).eq('id', conv.id);
 
       // Check if now ready after Haiku updates
       const nowReady = haikuResult.ready || (
